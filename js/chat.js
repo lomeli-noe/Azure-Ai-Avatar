@@ -18,10 +18,215 @@ window.onload = async function() {
         const response = await fetch('/api/config');
         config = await response.json();
         console.log("Configuration loaded:", config);
+
+        // Populate the knowledge base selector dynamically
+        const selector = document.getElementById('knowledgeBase');
+        if (selector && config.cognitiveSearchIndices && Object.keys(config.cognitiveSearchIndices).length > 0) {
+            // Clear existing options
+            selector.innerHTML = '';
+
+            // Add new options from config
+            for (const friendlyName in config.cognitiveSearchIndices) {
+                const option = document.createElement('option');
+                option.value = config.cognitiveSearchIndices[friendlyName];
+                option.textContent = friendlyName; // Use the user-friendly name from the server
+                selector.appendChild(option);
+            }
+            
+            // Add event listener for changes
+            selector.addEventListener('change', switchKnowledgeBase);
+
+            // Enable the selector and session button now that they are ready
+            selector.disabled = false;
+            document.getElementById('openSessionButton').disabled = false;
+        } else {
+            // If no indexes are configured, keep the controls disabled but inform the user.
+            console.warn("No search indexes found in configuration.");
+            const openSessionButton = document.getElementById('openSessionButton');
+            openSessionButton.textContent = 'Configuration Incomplete';
+            openSessionButton.title = 'Please configure at least one AZURE_COGNITIVE_SEARCH_INDEX in the .env file.';
+        }
+
+        // Display custom user avatar if path is provided
+        if (config.userAvatarImagePath && config.userAvatarImagePath.trim() !== '' && config.userAvatarImagePath !== 'image/my_avatar.png') {
+            const remoteVideoElement = document.getElementById('remoteVideo');
+            const customAvatarImg = document.createElement('img');
+            customAvatarImg.src = config.userAvatarImagePath;
+            customAvatarImg.className = 'custom-avatar';
+            remoteVideoElement.innerHTML = ''; // Clear any existing video/canvas
+            remoteVideoElement.appendChild(customAvatarImg);
+            document.getElementById('videoContainer').hidden = false;
+        }
+
+        // =================== ATTACH EVENT LISTENERS ===================
+        // These are now inside window.onload to ensure the DOM is ready.
+
+        // Upload functionality
+        document.getElementById('uploadImgIcon').addEventListener('click', () => {
+            document.getElementById('imageUpload').click();
+        });
+
+        document.getElementById('imageUpload').addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const imgElement = document.createElement('img');
+                    imgElement.src = e.target.result;
+                    imgElement.className = 'uploaded-image';
+                    document.getElementById('chat-history').appendChild(imgElement);
+                    // Optionally, you can send the image to the server or process it further
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Shortcut keys
+        document.addEventListener('keydown', (event) => {
+            if (event.ctrlKey && event.key === 'Enter') {
+                // Ctrl + Enter to send the message
+                const userMessage = document.getElementById('userMessage').value;
+                if (userMessage.trim() !== '') {
+                    sendMessageToGPT(userMessage);
+                    document.getElementById('userMessage').value = '';
+                }
+            } else if (event.key === 'F5') {
+                // F5 to reload the prompt
+                event.preventDefault();
+                reloadPrompt();
+            } else if (event.key === 'Escape') {
+                // Escape to close any open modals
+                closePromptModal();
+            }
+        });
+
+        // Contextual help
+        document.getElementById('helpButton').addEventListener('click', () => {
+            const helpText = `
+                <h3>Available Commands:</h3>
+                <ul>
+                    <li><strong>Open Avatar Session:</strong> Connect to the avatar service.</li>
+                    <li><strong>Close Avatar Session:</strong> Disconnect from the avatar service.</li>
+                    <li><strong>Clear Chat History:</strong> Clear the current chat history.</li>
+                    <li><strong>Reload Prompt:</strong> Reload the system prompt from the server.</li>
+                    <li><strong>Edit Prompt:</strong> Modify the system prompt used by the AI.</li>
+                    <li><strong>Microphone:</strong> Start/stop voice input.</li>
+                    <li><strong>Stop Speaking:</strong> Immediately stop the avatar's speech.</li>
+                </ul>
+                <p>For detailed instructions, please refer to the documentation.</p>
+            `;
+            const modal = document.getElementById('helpModal');
+            modal.querySelector('.modal-content').innerHTML = helpText;
+            modal.style.display = 'block';
+        });
+
+        // Close modal when clicking outside of it
+        window.onclick = function(event) {
+            const modal = document.getElementById('helpModal');
+            if (event.target == modal) {
+                modal.style.display = "none";
+            }
+        }
+
     } catch (error) {
         console.error('Failed to load configuration:', error);
         alert('Failed to load configuration. Please check the server and .env file.');
     }
+
+    // =================== EVENT LISTENERS for UI elements ===================
+    // These are placed inside window.onload to ensure the DOM is fully loaded.
+
+    // UPLOAD FUNCTIONALITY
+    document.getElementById('uploadImgIcon').addEventListener('click', () => {
+        document.getElementById('imageUpload').click();
+    });
+
+    document.getElementById('imageUpload').addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const imgElement = document.createElement('img');
+                imgElement.src = e.target.result;
+                imgElement.className = 'uploaded-image';
+                document.getElementById('chat-history').appendChild(imgElement);
+                // Optionally, you can send the image to the server or process it further
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+
+    // SHORTCUT KEYS
+    document.addEventListener('keydown', (event) => {
+        if (event.ctrlKey && event.key === 'Enter') {
+            // Ctrl + Enter to send the message
+            const userMessage = document.getElementById('userMessage').value;
+            if (userMessage.trim() !== '') {
+                sendMessageToGPT(userMessage);
+                document.getElementById('userMessage').value = '';
+            }
+        } else if (event.key === 'F5') {
+            // F5 to reload the prompt
+            event.preventDefault();
+            reloadPrompt();
+        } else if (event.key === 'Escape') {
+            // Escape to close any open modals
+            closePromptModal();
+        }
+    });
+
+    // CONTEXTUAL HELP
+    document.getElementById('helpButton').addEventListener('click', () => {
+        const helpText = `
+            <h3>Available Commands:</h3>
+            <ul>
+                <li><strong>Open Avatar Session:</strong> Connect to the avatar service.</li>
+                <li><strong>Close Avatar Session:</strong> Disconnect from the avatar service.</li>
+                <li><strong>Clear Chat History:</strong> Clear the current chat history.</li>
+                <li><strong>Reload Prompt:</strong> Reload the system prompt from the server.</li>
+                <li><strong>Edit Prompt:</strong> Modify the system prompt used by the AI.</li>
+                <li><strong>Microphone:</strong> Start/stop voice input.</li>
+                <li><strong>Stop Speaking:</strong> Immediately stop the avatar's speech.</li>
+            </ul>
+            <p>For detailed instructions, please refer to the documentation.</p>
+        `;
+        const modal = document.getElementById('helpModal');
+        modal.querySelector('.modal-content').innerHTML = helpText;
+        modal.style.display = 'block';
+    });
+
+    // Close modal when clicking outside of it
+    window.onclick = function(event) {
+        const helpModal = document.getElementById('helpModal');
+        const promptModal = document.getElementById('promptModal');
+        if (event.target == helpModal) {
+            helpModal.style.display = "none";
+        }
+        if (event.target == promptModal) {
+            promptModal.style.display = "none";
+        }
+    }
+
+    // Global error handler
+    window.addEventListener('error', (event) => {
+        console.error('Global error caught:', event);
+        alert('An unexpected error occurred. Please try again later.');
+    });
+};
+
+// Called when the knowledge base selection changes
+window.switchKnowledgeBase = function() {
+    const selector = document.getElementById('knowledgeBase');
+    const newIndexName = selector.value;
+    console.log(`Switching knowledge base to: ${newIndexName}`);
+
+    // Update the data source configuration
+    setDataSources(config.azureCogSearchEndpoint, config.azureCogSearchKey, newIndexName);
+
+    // Clear the chat history to start a new conversation context
+    clearChatHistory();
+
+    alert(`Knowledge base switched to "${selector.options[selector.selectedIndex].text}". The chat has been reset.`);
 };
 
 // Called when "Open Avatar Session" is clicked
@@ -187,7 +392,47 @@ function makeBackgroundTransparent(timestamp) {
 }
 
 // =================== CONNECT AVATAR SERVICE ===================
-function connectAvatar() {
+async function connectAvatar() {
+    console.log("Connecting to avatar...");
+
+    // If a custom avatar image is used, we don't need the full avatar synthesizer
+    if (config.userAvatarImagePath && config.userAvatarImagePath.trim() !== '' && config.userAvatarImagePath !== 'image/my_avatar.png') {
+        console.log("Custom avatar image detected, initializing speech synthesis only.");
+        const cogSvcRegion = config.azureSpeechRegion;
+        const cogSvcSubKey = config.azureSpeechKey;
+        let speechSynthesisConfig = SpeechSDK.SpeechConfig.fromSubscription(cogSvcSubKey, cogSvcRegion);
+        speechSynthesisConfig.speechSynthesisVoiceName = config.ttsVoice;
+        
+        // Use a standard speech synthesizer as we don't need video
+        avatarSynthesizer = new SpeechSDK.SpeechSynthesizer(speechSynthesisConfig);
+
+        // Setup STT recognizer
+        const speechRecognitionConfig = SpeechSDK.SpeechConfig.fromSubscription(cogSvcSubKey, cogSvcRegion);
+        speechRecognitionConfig.setProperty(SpeechSDK.PropertyId.SpeechServiceConnection_LanguageIdMode, 'Continuous');
+        const autoDetectSourceLanguageConfig = SpeechSDK.AutoDetectSourceLanguageConfig.fromLanguages(config.sttLocales.split(','));
+        speechRecognizer = SpeechSDK.SpeechRecognizer.FromConfig(
+            speechRecognitionConfig,
+            autoDetectSourceLanguageConfig,
+            SpeechSDK.AudioConfig.fromDefaultMicrophoneInput()
+        );
+
+        // Set data sources and initialize messages
+        const selector = document.getElementById('knowledgeBase');
+        const indexName = selector.value;
+        setDataSources(config.azureCogSearchEndpoint, config.azureCogSearchKey, indexName);
+        messages = [];
+        if (config.systemPrompt) {
+            messages.push({ role: 'system', content: config.systemPrompt });
+        }
+
+        // Enable controls as the session is now "active" for speech
+        document.getElementById('chatContainer').hidden = false;
+        document.getElementById('microphone').disabled = false;
+        document.getElementById('stopSession').disabled = false;
+        sessionActive = true;
+        return; // Skip the rest of the function for WebRTC setup
+    }
+
     const cogSvcRegion = config.azureSpeechRegion;
     const cogSvcSubKey = config.azureSpeechKey;
 
@@ -208,16 +453,14 @@ function connectAvatar() {
         SpeechSDK.AudioConfig.fromDefaultMicrophoneInput()
     );
 
-    // Initialize messages with system prompt
-    messages = [];
-    if (config.systemPrompt) {
-        messages.push({ role: 'system', content: config.systemPrompt });
-    }
+    const selector = document.getElementById('knowledgeBase');
+    const indexName = selector.value;
+    setDataSources(config.azureCogSearchEndpoint, config.azureCogSearchKey, indexName);
 
-    // Set up "On Your Data" if configured
-    dataSources = [];
-    if (config.azureCogSearchEndpoint && config.azureCogSearchKey && config.azureCogSearchIndexName) {
-        setDataSources(config.azureCogSearchEndpoint, config.azureCogSearchKey, config.azureCogSearchIndexName);
+    const systemPrompt = config.systemPrompt;
+    messages = [];
+    if (systemPrompt) {
+        messages.push({ role: 'system', content: systemPrompt });
     }
 
     // Get token for WebRTC
@@ -366,193 +609,180 @@ function setDataSources(endpoint, key, indexName) {
 
 // =================== SPEECH-TO-TEXT (STT) ===================
 function startMicrophone() {
-    if (!speechRecognizer) {
-        console.error('Speech recognizer is not initialized.');
-        return;
+    const cogSvcRegion = config.azureSpeechRegion;
+    const cogSvcSubKey = config.azureSpeechKey;
+
+    // Ensure only one recognizer is active at a time
+    if (speechRecognizer) {
+        speechRecognizer.close();
+        speechRecognizer = null;
     }
 
-    const micButton = document.getElementById('microphone');
-    micButton.disabled = true; // Disable button to prevent multiple clicks
-    let finalTranscript = '';
+    const speechRecognitionConfig = SpeechSDK.SpeechConfig.fromSubscription(cogSvcSubKey, cogSvcRegion);
+    speechRecognitionConfig.setProperty(SpeechSDK.PropertyId.SpeechServiceConnection_LanguageIdMode, 'Continuous');
+    const autoDetectSourceLanguageConfig = SpeechSDK.AutoDetectSourceLanguageConfig.fromLanguages(config.sttLocales.split(','));
+    speechRecognizer = SpeechSDK.SpeechRecognizer.FromConfig(
+        speechRecognitionConfig,
+        autoDetectSourceLanguageConfig,
+        SpeechSDK.AudioConfig.fromDefaultMicrophoneInput()
+    );
+
+    speechRecognizer.recognizing = (s, e) => {
+        // console.log(`Recognizing: ${e.result.text}`);
+    };
 
     speechRecognizer.recognized = (s, e) => {
-        if (e.result.reason == SpeechSDK.ResultReason.RecognizedSpeech) {
-            let recognizedText = e.result.text;
-            finalTranscript += recognizedText + ' ';
+        if (e.result.reason === SpeechSDK.ResultReason.RecognizedSpeech) {
+            const text = e.result.text.trim();
+            console.log(`Recognized: ${text}`);
+            addMessage('user', text);
 
-            // Check if the recognized text contains a sentence-ending punctuation
-            const lastChar = recognizedText.trim().slice(-1);
-            if (sentenceLevelPunctuations.includes(lastChar)) {
-                console.log(`Sentence detected: ${finalTranscript.trim()}`);
-                addUserMessage(finalTranscript.trim());
-                getChatGptResponse(finalTranscript.trim());
-                finalTranscript = ''; // Reset for the next sentence
-            }
+            // Send the user message to the GPT model
+            sendMessageToGPT(text);
+        } else if (e.result.reason === SpeechSDK.ResultReason.NoMatch) {
+            console.log("No speech could be recognized.");
+        } else if (e.result.reason === SpeechSDK.ResultReason.Canceled) {
+            const cancellation = SpeechSDK.CancellationDetails.fromResult(e.result);
+            console.error(`Speech recognition canceled: ${cancellation.errorDetails}`);
         }
     };
 
-    speechRecognizer.sessionStopped = (s, e) => {
-        console.log('Recognition session stopped.');
-        stopMicrophone();
-        if (finalTranscript) {
-            addUserMessage(finalTranscript.trim());
-            getChatGptResponse(finalTranscript.trim());
+    speechRecognizer.startContinuousRecognitionAsync(
+        () => {
+            console.log("Speech recognition started.");
+            document.getElementById('stopSpeaking').disabled = false;
+        },
+        err => {
+            console.error("Failed to start speech recognition: ", err);
         }
-    };
-
-    speechRecognizer.canceled = (s, e) => {
-        console.error(`CANCELED: Reason=${e.reason}`);
-        if (e.reason == SpeechSDK.CancellationReason.Error) {
-            console.error(`CANCELED: ErrorDetails=${e.errorDetails}`);
-        }
-        stopMicrophone();
-    };
-
-    speechRecognizer.startContinuousRecognitionAsync(() => {
-        console.log('Recognition started');
-        micButton.textContent = 'Stop Microphone';
-        micButton.disabled = false;
-    }, err => {
-        console.error(`Error starting recognition: ${err}`);
-        micButton.disabled = false;
-    });
+    );
 }
 
+// =================== STOP SPEECH-TO-TEXT (STT) ===================
 function stopMicrophone() {
     if (speechRecognizer) {
-        speechRecognizer.stopContinuousRecognitionAsync(() => {
-            console.log('Recognition stopped.');
-        }, err => {
-            console.error(`ERROR stopping recognition: ${err}`);
-        });
+        speechRecognizer.stopContinuousRecognitionAsync(
+            () => {
+                console.log("Speech recognition stopped.");
+                speechRecognizer.close();
+                speechRecognizer = null;
+            },
+            err => {
+                console.error("Failed to stop speech recognition: ", err);
+            }
+        );
     }
-    const micButton = document.getElementById('microphone');
-    micButton.textContent = 'Start Microphone';
 }
 
-// =================== CHAT COMPLETION ===================
-function addUserMessage(message) {
-    messages.push({ role: 'user', content: message });
-    const chatHistory = document.getElementById('chat-history');
-    const userMessage = document.createElement('div');
-    userMessage.className = 'user-message';
-    userMessage.textContent = message;
-    chatHistory.appendChild(userMessage);
-    chatHistory.scrollTop = chatHistory.scrollHeight;
-}
+// =================== SEND MESSAGE TO GPT ===================
+async function sendMessageToGPT(userMessage) {
+    // Add the user message to the chat history
+    addMessage('user', userMessage);
 
-async function getChatGptResponse(prompt) {
-    console.log('Checking config in getChatGptResponse:', config); // Add this line for debugging
-    if (!config.azureOpenAIEndpoint || !config.azureOpenAIKey || !config.azureOpenAIDeploymentName || !config.azureOpenAIApiVersion) {
-        alert('Azure OpenAI configuration is incomplete. Please check your .env file and server.');
-        return;
-    }
-
-    if (!prompt && messages.length === 1) { // Only system prompt exists
-        return;
-    }
-
-    const chatHistory = document.getElementById('chat-history');
-    const assistantMessageDiv = document.createElement('div');
-    assistantMessageDiv.className = 'assistant-message';
-    chatHistory.appendChild(assistantMessageDiv);
-
-    let fullResponse = '';
+    // Prepare the request payload, now including the data sources
+    const requestPayload = {
+        data_sources: dataSources, // Add the configured data sources
+        messages: messages.concat([{ role: 'user', content: userMessage }]),
+        temperature: 0.7,
+        max_tokens: 150,
+        top_p: 1.0,
+        frequency_penalty: 0.0,
+        presence_penalty: 0.0
+    };
 
     try {
-        const body = {
-            messages: messages,
-            stream: true,
-        };
-
-        if (dataSources.length > 0) {
-            body.data_sources = dataSources; // Use snake_case for the API
-        }
-
-        const url = `${config.azureOpenAIEndpoint}/openai/deployments/${config.azureOpenAIDeploymentName}/chat/completions?api-version=${config.azureOpenAIApiVersion}`;
-
-        const response = await fetch(url, {
+        // Send the request to the GPT API
+        const response = await fetch('/api/gpt', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'api-key': config.azureOpenAIKey
             },
-            body: JSON.stringify(body)
+            body: JSON.stringify(requestPayload),
         });
 
         if (!response.ok) {
-            const errorData = await response.json();
-            console.error("API Error:", errorData);
-            assistantMessageDiv.innerHTML = `Error: ${errorData.error.message}`;
-            return;
+            throw new Error(`HTTP error! status: ${response.status}`);
         }
 
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
+        const responseData = await response.json();
+        const gptMessage = responseData.choices[0].message.content.trim();
+        console.log(`GPT: ${gptMessage}`);
 
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
+        // Add the GPT message to the chat history
+        addMessage('assistant', gptMessage);
 
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop();
-
-            for (const line of lines) {
-                if (line.startsWith('data: ')) {
-                    const jsonStr = line.substring(6);
-                    if (jsonStr.trim() === '[DONE]') {
-                        break; // End of stream
-                    }
-                    try {
-                        const parsed = JSON.parse(jsonStr);
-                        if (parsed.choices && parsed.choices[0].delta) {
-                            const delta = parsed.choices[0].delta;
-                            if (delta.content) {
-                                fullResponse += delta.content;
-                                assistantMessageDiv.innerHTML = fullResponse; // Use innerHTML to render markdown
-                                chatHistory.scrollTop = chatHistory.scrollHeight;
-                            }
-                        }
-                    } catch (e) {
-                        console.error('Error parsing stream data:', e);
-                    }
-                }
-            }
-        }
-
-        // Push the full response to the messages array for chat history
-        if (fullResponse) {
-            messages.push({ role: 'assistant', content: fullResponse });
-        }
-
-        // Make the avatar speak the response
-        if (avatarSynthesizer && fullResponse) {
-            console.log("Sending response to avatar for synthesis: ", fullResponse);
-            avatarSynthesizer.speakTextAsync(
-                fullResponse,
-                result => {
-                    if (result.reason === SpeechSDK.ResultReason.SynthesizingAudioCompleted) {
-                        console.log("Avatar speech synthesis completed successfully.");
-                    } else {
-                        console.error(`Avatar speech synthesis failed: ${result.errorDetails}`);
-                    }
-                    isSpeaking = false;
-                    document.getElementById('stopSpeaking').disabled = true;
-                },
-                error => {
-                    console.error(`An error occurred during avatar speech synthesis: ${error}`);
-                    isSpeaking = false;
-                    document.getElementById('stopSpeaking').disabled = true;
-                }
-            );
-            isSpeaking = true;
-            document.getElementById('stopSpeaking').disabled = false;
-        }
+        // Speak the GPT message using the avatar
+        await speakWithAvatar(gptMessage);
 
     } catch (error) {
-        console.error('Error getting chat response:', error);
-        assistantMessageDiv.textContent = 'Failed to get response.';
+        console.error('Error communicating with GPT:', error);
+        alert('Error communicating with GPT. Please try again later.');
     }
 }
+
+// =================== ADD MESSAGE TO CHAT ===================
+function addMessage(role, content) {
+    messages.push({ role, content });
+    const chatHistory = document.getElementById('chat-history');
+    const messageElement = document.createElement('div');
+    messageElement.className = `message ${role}`;
+    messageElement.textContent = content;
+    chatHistory.appendChild(messageElement);
+    chatHistory.scrollTop = chatHistory.scrollHeight; // Auto-scroll to the bottom
+}
+
+// =================== SPEAK WITH AVATAR ===================
+async function speakWithAvatar(message) {
+    if (!avatarSynthesizer) {
+        console.error("Avatar synthesizer is not initialized.");
+        return;
+    }
+
+    isSpeaking = true;
+    document.getElementById('stopSpeaking').disabled = false;
+
+    try {
+        await avatarSynthesizer.speakTextAsync(message);
+    } catch (error) {
+        console.error("Error speaking with avatar:", error);
+    } finally {
+        isSpeaking = false;
+        document.getElementById('stopSpeaking').disabled = true;
+    }
+}
+
+// =================== DOWNLOAD FUNCTION ===================
+async function downloadFile(filename, content) {
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    if (window.navigator.msSaveBlob) {
+        // For IE and Edge
+        window.navigator.msSaveBlob(blob, filename);
+    } else {
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+}
+
+// =================== INITIATE CONVERSATION ===================
+function initiateConversation() {
+    clearChatHistory();
+    const welcomeMessage = "Hello! I'm your AI assistant. How can I help you today?";
+    addMessage('assistant', welcomeMessage);
+    speakWithAvatar(welcomeMessage);
+}
+
+// =================== SHORTCUT KEYS ===================
+// MOVED to window.onload
+
+// =================== CONTEXTUAL HELP ===================
+// MOVED to window.onload
+
+// =================== ERROR HANDLING ===================
+window.addEventListener('error', (event) => {
+    console.error('Global error caught:', event);
+    alert('An unexpected error occurred. Please try again later.');
+});
