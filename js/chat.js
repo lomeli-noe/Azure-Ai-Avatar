@@ -119,34 +119,6 @@ window.onload = async function() {
             }
         });
 
-        // Contextual help
-        document.getElementById('helpButton').addEventListener('click', () => {
-            const helpText = `
-                <h3>Available Commands:</h3>
-                <ul>
-                    <li><strong>Open Avatar Session:</strong> Connect to the avatar service.</li>
-                    <li><strong>Close Avatar Session:</strong> Disconnect from the avatar service.</li>
-                    <li><strong>Clear Chat History:</strong> Clear the current chat history.</li>
-                    <li><strong>Reload Prompt:</strong> Reload the system prompt from the server.</li>
-                    <li><strong>Edit Prompt:</strong> Modify the system prompt used by the AI.</li>
-                    <li><strong>Microphone:</strong> Start/stop voice input.</li>
-                    <li><strong>Stop Speaking:</strong> Immediately stop the avatar's speech.</li>
-                </ul>
-                <p>For detailed instructions, please refer to the documentation.</p>
-            `;
-            const modal = document.getElementById('helpModal');
-            modal.querySelector('.modal-content').innerHTML = helpText;
-            modal.style.display = 'block';
-        });
-
-        // Close modal when clicking outside of it
-        window.onclick = function(event) {
-            const modal = document.getElementById('helpModal');
-            if (event.target == modal) {
-                modal.style.display = "none";
-            }
-        }
-
     } catch (error) {
         console.error('Failed to load configuration:', error);
         alert('Failed to load configuration. Please check the server and .env file.');
@@ -154,11 +126,7 @@ window.onload = async function() {
 
     // Close modal when clicking outside of it
     window.onclick = function(event) {
-        const helpModal = document.getElementById('helpModal');
         const promptModal = document.getElementById('promptModal');
-        if (event.target == helpModal) {
-            helpModal.style.display = "none";
-        }
         if (event.target == promptModal) {
             promptModal.style.display = "none";
         }
@@ -203,6 +171,7 @@ window.switchPrompt = async function() {
 // Called when "Open Avatar Session" is clicked
 window.startSession = function() {
     document.getElementById('openSessionButton').disabled = true;
+    document.getElementById('controlsToolbar').style.display = 'block';
     connectAvatar();
 };
 
@@ -210,9 +179,11 @@ window.startSession = function() {
 window.stopSession = function() {
     disconnectAvatar();
     document.getElementById('openSessionButton').disabled = false;
+    document.getElementById('controlsToolbar').style.display = 'none';
     document.getElementById('chatContainer').hidden = true;
     document.getElementById('videoContainer').hidden = true;
     document.getElementById('microphone').disabled = true;
+    document.getElementById('microphone').textContent = '🎤 Start Microphone'; // Reset button text
     document.getElementById('stopSession').disabled = true;
     document.getElementById('stopSpeaking').disabled = true;
     sessionActive = false;
@@ -323,14 +294,14 @@ window.microphone = function() {
     console.log("Microphone button clicked");
     const micButton = document.getElementById('microphone');
     console.log("Current button text:", micButton.textContent);
-    if (micButton.textContent === 'Start Microphone') {
+    if (micButton.textContent.includes('Start Microphone')) {
         console.log("Starting microphone...");
         startMicrophone();
-        micButton.textContent = 'Stop Microphone';
+        micButton.textContent = '🛑 Stop Microphone';
     } else {
         console.log("Stopping microphone...");
         stopMicrophone();
-        micButton.textContent = 'Start Microphone';
+        micButton.textContent = '🎤 Start Microphone';
     }
 };
 
@@ -874,6 +845,12 @@ function setupSpeechRecognizer() {
         console.error("Cancellation reason code:", e.reason);
         console.error("Error code:", e.errorCode);
         console.error("Error details:", e.errorDetails);
+        
+        // Reset microphone button state when recognition is canceled
+        const micButton = document.getElementById('microphone');
+        if (micButton) {
+            micButton.textContent = '🎤 Start Microphone';
+        }
         
         if (e.reason === SpeechSDK.CancellationReason.Error) {
             console.error("Cancellation due to error. Error details:", e.errorDetails);

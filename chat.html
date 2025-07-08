@@ -4,61 +4,210 @@
   <meta charset="UTF-8" />
   <title>AI TUTOR</title>
   <link href="/css/style.css" rel="stylesheet" />
+  <style>
+    /* Placeholder styling for contentEditable */
+    #userMessageBox:empty:before {
+      content: attr(data-placeholder);
+      color: #999;
+      font-style: italic;
+    }
+    
+    #userMessageBox:focus:before {
+      content: none;
+    }
+    
+    /* Button hover effects */
+    button:hover:not(:disabled) {
+      opacity: 0.9;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2) !important;
+    }
+    
+    button:active:not(:disabled) {
+      transform: translateY(0);
+    }
+    
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none !important;
+      box-shadow: none !important;
+    }
+    
+    /* Clean up the layout */
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 20px;
+      background-color: #f5f5f5;
+    }
+    
+    h1 {
+      color: #333;
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    
+    /* Override external CSS for chat messages */
+    .message {
+      padding: 10px 15px;
+      border-radius: 15px;
+      margin-bottom: 10px;
+      max-width: 80%;
+      word-wrap: break-word;
+      white-space: pre-wrap;
+    }
+    
+    .message.user {
+      background-color: #007bff !important;
+      color: white !important;
+      align-self: flex-end;
+      margin-left: auto;
+    }
+    
+    .message.assistant {
+      background-color: #f1f3f4 !important;
+      color: #333 !important;
+      align-self: flex-start;
+      margin-right: auto;
+    }
+    
+    /* Ensure chat container doesn't inherit unwanted styles */
+    #chatContainer {
+      background-color: transparent !important;
+      height: auto !important;
+      padding: 0 !important;
+    }
+    
+    #chat-history {
+      background-color: #fafafa !important;
+      color: #333 !important;
+      border: 2px solid #e0e0e0 !important;
+    }
+    
+    /* Enhanced toolbar styling */
+    #controlsToolbar {
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.2);
+    }
+    
+    /* Improved button animations */
+    #controlsToolbar button {
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    #controlsToolbar button:hover:not(:disabled) {
+      transform: translateY(-3px) scale(1.05);
+    }
+    
+    /* Modal Styling */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0,0,0,0.5);
+      backdrop-filter: blur(5px);
+    }
+    
+    .modal-content {
+      background-color: #fefefe;
+      margin: 5% auto;
+      padding: 30px;
+      border: none;
+      border-radius: 12px;
+      width: 80%;
+      max-width: 600px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+      position: relative;
+      animation: modalSlideIn 0.3s ease-out;
+    }
+    
+    @keyframes modalSlideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-50px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    
+    .close {
+      color: #aaa;
+      float: right;
+      font-size: 28px;
+      font-weight: bold;
+      position: absolute;
+      right: 20px;
+      top: 15px;
+      cursor: pointer;
+      transition: color 0.2s ease;
+    }
+    
+    .close:hover,
+    .close:focus {
+      color: #333;
+    }
+  </style>
 </head>
 <body>
   <h1 id="pageTitle">IQ Studios Avatar</h1>
 
   <!-- KNOWLEDGE BASE SELECTION -->
-  <div id="knowledgeBaseSelectorDiv" style="margin-bottom: 10px;">
-    <label for="knowledgeBase">Select Knowledge Base:</label>
-    <select id="knowledgeBase" name="knowledgeBase" disabled>
+  <div id="knowledgeBaseSelectorDiv" style="margin-bottom: 15px;">
+    <label for="knowledgeBase" style="font-weight: bold; margin-right: 10px;">Knowledge Base:</label>
+    <select id="knowledgeBase" name="knowledgeBase" disabled style="padding: 8px 12px; border: 2px solid #ddd; border-radius: 4px; font-size: 14px; min-width: 200px;">
       <!-- Options will be populated dynamically -->
     </select>
   </div>
 
   <!-- PROMPT SELECTION -->
-  <div id="promptSelectorDiv" style="margin-bottom: 10px;">
-    <label for="promptSelector">Select Prompt:</label>
-    <select id="promptSelector" name="promptSelector">
+  <div id="promptSelectorDiv" style="margin-bottom: 15px;">
+    <label for="promptSelector" style="font-weight: bold; margin-right: 10px;">Prompt:</label>
+    <select id="promptSelector" name="promptSelector" style="padding: 8px 12px; border: 2px solid #ddd; border-radius: 4px; font-size: 14px; min-width: 200px;">
       <option value="superintelligence_prompt">Super Intelligence</option>
       <option value="four_gifts_prompt">Four Gifts</option>
     </select>
   </div>
 
   <!-- SINGLE BUTTON to open the avatar session -->
-  <button id="openSessionButton" onclick="window.startSession()" disabled>Open Avatar Session</button>
+  <button id="openSessionButton" onclick="window.startSession()" disabled style="padding: 18px 36px; background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%); color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);">🚀 Open Avatar Session</button>
+
+  <!-- CONTROL BUTTONS TOOLBAR -->
+  <div id="controlsToolbar" style="display: none; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 15px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+    <div style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; align-items: center;">
+      <button id="microphone" onclick="window.microphone()" disabled style="padding: 12px 20px; background-color: #2196F3; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; box-shadow: 0 2px 8px rgba(33, 150, 243, 0.3); transition: all 0.2s ease; min-width: 160px; text-align: center;">🎤 Start Microphone</button>
+      <button id="stopSpeaking" onclick="window.stopSpeaking()" disabled style="padding: 12px 20px; background-color: #f44336; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; box-shadow: 0 2px 8px rgba(244, 67, 54, 0.3); transition: all 0.2s ease; min-width: 140px; text-align: center;">🛑 Stop Speaking</button>
+      <button id="clearChatHistory" onclick="window.clearChatHistory()" style="padding: 12px 20px; background-color: #FF9800; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; box-shadow: 0 2px 8px rgba(255, 152, 0, 0.3); transition: all 0.2s ease; min-width: 120px; text-align: center;">🗑️ Clear Chat</button>
+      <button id="editPrompt" onclick="window.openPromptModal()" style="padding: 12px 20px; background-color: #607D8B; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; box-shadow: 0 2px 8px rgba(96, 125, 139, 0.3); transition: all 0.2s ease; min-width: 130px; text-align: center;">✏️ Edit Prompt</button>
+      <button id="stopSession" onclick="window.stopSession()" disabled style="padding: 12px 20px; background-color: #795548; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; box-shadow: 0 2px 8px rgba(121, 85, 72, 0.3); transition: all 0.2s ease; min-width: 140px; text-align: center;">❌ Close Session</button>
+    </div>
+  </div>
 
   <!-- MAIN ROW: left = #chatContainer, right = #videoContainer -->
   <div id="mainContainer" style="display: flex; gap: 20px; margin-top: 20px;">
     <!-- The chat container on the left, hidden at first -->
-    <div id="chatContainer" style="flex: 1; display: flex; flex-direction: column; gap: 10px;" hidden>
-      <div id="chat-history" style="height: 450px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; border-radius: 5px;"></div>
+    <div id="chatContainer" style="flex: 1; display: flex; flex-direction: column; gap: 15px; background-color: transparent !important; height: auto !important; padding: 0 !important;" hidden>
+      <div id="chat-history" style="height: 450px; overflow-y: auto; border: 2px solid #e0e0e0; padding: 15px; border-radius: 8px; background-color: #fafafa !important; font-family: Arial, sans-serif; color: #333 !important;"></div>
       
       <!-- TYPE MESSAGE UI -->
       <div id="messageEntryContainer">
-        <div id="showTypeMessageCheckbox">
-          <input type="checkbox" id="showTypeMessage" onchange="window.updateTypeMessageBox()" />
-          <label for="showTypeMessage">Type Message</label>
+        <div id="showTypeMessageCheckbox" style="margin-bottom: 10px;">
+          <input type="checkbox" id="showTypeMessage" onchange="window.updateTypeMessageBox()" checked />
+          <label for="showTypeMessage">Enable Text Input</label>
         </div>
-        <div style="display: flex; gap: 10px; align-items: flex-end;" id="messageInputContainer" hidden>
-          <div id="userMessageBox" style="flex: 1; min-height: 100px; border: 1px solid; overflow-y: scroll; padding: 10px; box-sizing: border-box;" contentEditable="true"></div>
+        <div style="display: flex; gap: 10px; align-items: flex-end;" id="messageInputContainer">
+          <div id="userMessageBox" style="flex: 1; min-height: 80px; border: 2px solid #4CAF50; border-radius: 5px; overflow-y: auto; padding: 12px; box-sizing: border-box; font-family: Arial, sans-serif; font-size: 14px; background-color: #f9f9f9; color: #333;" contentEditable="true" data-placeholder="Type your message here and press Enter or click Send..."></div>
           <div style="display: flex; flex-direction: column; gap: 5px;">
-            <button id="sendMessage" onclick="window.sendTypedMessage()" style="padding: 10px 20px;">Send</button>
+            <button id="sendMessage" onclick="window.sendTypedMessage()" style="padding: 12px 20px; background-color: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">Send</button>
             <img id="uploadImgIcon" src="./image/attachment.jpg" alt="Attach" style="cursor: pointer; width: 24px; height: 24px;" />
           </div>
         </div>
         <input type="file" id="imageUpload" accept="image/*" style="display: none;" />
-      </div>
-
-      <!-- The 4 control buttons -->
-      <div id="controls" style="display: flex; gap: 10px;">
-        <button id="microphone" onclick="window.microphone()" disabled>Start Microphone</button>
-        <button id="stopSpeaking" onclick="window.stopSpeaking()" disabled>Stop Speaking</button>
-        <button id="clearChatHistory" onclick="window.clearChatHistory()">Clear Chat History</button>
-        <button id="reloadPrompt" onclick="window.reloadPrompt()">Reload Prompt</button>
-        <button id="editPrompt" onclick="window.openPromptModal()">Edit Prompt</button>
-        <button id="stopSession" onclick="window.stopSession()" disabled>Close Avatar Session</button>
-        <button id="helpButton">Help</button>
       </div>
     </div>
 
@@ -77,17 +226,17 @@
     <div class="modal-content">
       <span class="close" onclick="window.closePromptModal()">&times;</span>
       <h2>Edit System Prompt</h2>
-      <textarea id="promptTextarea" style="width: 98%; height: 300px;"></textarea>
-      <button onclick="window.savePrompt()">Save and Reload</button>
-    </div>
-  </div>
-
-  <!-- Help Modal -->
-  <div id="helpModal" class="modal">
-    <div class="modal-content">
-      <span class="close" onclick="document.getElementById('helpModal').style.display='none'">&times;</span>
-      <div id="helpContent">
-        <!-- Help text will be inserted here -->
+      
+      <!-- Prompt Control Buttons -->
+      <div style="margin-bottom: 15px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+        <button id="reloadPrompt" onclick="window.reloadPrompt()" style="padding: 10px 18px; background-color: #9C27B0; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; box-shadow: 0 2px 8px rgba(156, 39, 176, 0.3); transition: all 0.2s ease;">🔄 Reload Current Prompt</button>
+        <button onclick="window.closePromptModal()" style="padding: 10px 18px; background-color: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; box-shadow: 0 2px 8px rgba(108, 117, 125, 0.3); transition: all 0.2s ease;">❌ Cancel</button>
+      </div>
+      
+      <textarea id="promptTextarea" style="width: 98%; height: 300px; border: 2px solid #ddd; border-radius: 6px; padding: 10px; font-family: 'Courier New', monospace; font-size: 14px; resize: vertical;"></textarea>
+      
+      <div style="margin-top: 15px; display: flex; gap: 10px; justify-content: center;">
+        <button onclick="window.savePrompt()" style="padding: 12px 24px; background-color: #28a745; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 16px; font-weight: bold; box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3); transition: all 0.2s ease;">💾 Save and Apply</button>
       </div>
     </div>
   </div>
