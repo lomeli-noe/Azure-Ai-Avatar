@@ -73,6 +73,56 @@ app.get('/api/config', (req, res) => {
     });
 });
 
+// Endpoint to get a specific prompt
+app.get('/api/prompt/:promptName', (req, res) => {
+    const promptName = req.params.promptName;
+    const promptFilePath = path.join(__dirname, 'prompts', `${promptName}.txt`);
+    fs.readFile(promptFilePath, 'utf-8', (err, data) => {
+        if (err) {
+            console.error(`Error reading ${promptFilePath}:`, err);
+            return res.status(500).send('Error loading prompt.');
+        }
+        res.json({ prompt: data });
+    });
+});
+
+// Endpoint to save a specific prompt
+app.post('/api/prompt/:promptName', (req, res) => {
+    const promptName = req.params.promptName;
+    const newPrompt = req.body.prompt;
+    const promptFilePath = path.join(__dirname, 'prompts', `${promptName}.txt`);
+
+    if (newPrompt) {
+        fs.writeFile(promptFilePath, newPrompt, 'utf-8', (err) => {
+            if (err) {
+                console.error(`Error writing to ${promptFilePath}:`, err);
+                return res.status(500).send('Error saving prompt.');
+            }
+            console.log(`Prompt ${promptName} updated successfully.`);
+            res.send('Prompt saved successfully.');
+        });
+    } else {
+        res.status(400).send('Prompt content is missing.');
+    }
+});
+
+// Endpoint to save the system prompt (legacy support)
+app.post('/api/prompt', (req, res) => {
+  const newPrompt = req.body.prompt;
+  if (newPrompt) {
+    fs.writeFile(promptFilePath, newPrompt, 'utf-8', (err) => {
+      if (err) {
+        console.error('Error writing to prompt.txt:', err);
+        return res.status(500).send('Error saving prompt.');
+      }
+      console.log('Prompt updated successfully.');
+      res.send('Prompt saved successfully.');
+    });
+  } else {
+    res.status(400).send('Prompt content is missing.');
+  }
+});
+
 // Endpoint to handle GPT-4 chat requests
 app.post('/api/gpt', async (req, res) => {
     try {
@@ -114,21 +164,28 @@ app.post('/api/gpt', async (req, res) => {
     }
 });
 
-// Endpoint to save the system prompt
-app.post('/api/prompt', (req, res) => {
-  const newPrompt = req.body.prompt;
-  if (newPrompt) {
-    fs.writeFile(promptFilePath, newPrompt, 'utf-8', (err) => {
-      if (err) {
-        console.error('Error writing to prompt.txt:', err);
-        return res.status(500).send('Error saving prompt.');
-      }
-      console.log('Prompt updated successfully.');
-      res.send('Prompt saved successfully.');
+// Endpoint to get the Four Gifts summary
+app.get('/api/four-gifts-summary', (req, res) => {
+    const summaryFilePath = path.join(__dirname, 'prompts', 'four_gifts_summary.txt');
+    fs.readFile(summaryFilePath, 'utf-8', (err, data) => {
+        if (err) {
+            console.error(`Error reading ${summaryFilePath}:`, err);
+            return res.status(500).send('Error loading Four Gifts summary.');
+        }
+        res.json({ summary: data });
     });
-  } else {
-    res.status(400).send('Prompt content is missing.');
-  }
+});
+
+// Endpoint to get the Super Intelligence summary
+app.get('/api/superintelligence-summary', (req, res) => {
+    const summaryFilePath = path.join(__dirname, 'prompts', 'superintelligence_summary.txt');
+    fs.readFile(summaryFilePath, 'utf-8', (err, data) => {
+        if (err) {
+            console.error(`Error reading ${summaryFilePath}:`, err);
+            return res.status(500).send('Error loading Super Intelligence summary.');
+        }
+        res.json({ summary: data });
+    });
 });
 
 app.listen(port, () => {
