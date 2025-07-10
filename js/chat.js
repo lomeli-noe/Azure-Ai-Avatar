@@ -16,41 +16,67 @@ var currentPrompt = 'superintelligence_prompt'; // Default prompt
 // Called when the page is loaded
 window.onload = async function() {
     try {
+        // Get conference from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const conference = urlParams.get('conference');
+
         const response = await fetch('/api/config');
         config = await response.json();
         console.log("Configuration loaded:", config);
 
-        // Populate the knowledge base selector dynamically
+        // Knowledge base selector has been removed from the UI. Skip related logic.
         const knowledgeBaseSelector = document.getElementById('knowledgeBase');
-        if (knowledgeBaseSelector && config.cognitiveSearchIndices && Object.keys(config.cognitiveSearchIndices).length > 0) {
-            // Clear existing options
-            knowledgeBaseSelector.innerHTML = '';
-
-            // Add new options from config
-            for (const friendlyName in config.cognitiveSearchIndices) {
-                const option = document.createElement('option');
-                option.value = config.cognitiveSearchIndices[friendlyName];
-                option.textContent = friendlyName; // Use the user-friendly name from the server
-                knowledgeBaseSelector.appendChild(option);
+        if (knowledgeBaseSelector) {
+            if (config.cognitiveSearchIndices && Object.keys(config.cognitiveSearchIndices).length > 0) {
+                knowledgeBaseSelector.innerHTML = '';
+                for (const friendlyName in config.cognitiveSearchIndices) {
+                    const option = document.createElement('option');
+                    option.value = config.cognitiveSearchIndices[friendlyName];
+                    option.textContent = friendlyName;
+                    knowledgeBaseSelector.appendChild(option);
+                }
+                knowledgeBaseSelector.addEventListener('change', switchKnowledgeBase);
+                knowledgeBaseSelector.disabled = false;
+                document.getElementById('openSessionButton').disabled = false;
+            } else {
+                // If no indexes are configured, keep the controls disabled but inform the user.
+                console.warn("No search indexes found in configuration.");
+                const openSessionButton = document.getElementById('openSessionButton');
+                openSessionButton.textContent = 'Configuration Incomplete';
+                openSessionButton.title = 'Please configure at least one AZURE_COGNITIVE_SEARCH_INDEX in the .env file.';
             }
-            
-            // Add event listener for changes
-            knowledgeBaseSelector.addEventListener('change', switchKnowledgeBase);
-
-            // Enable the selector and session button now that they are ready
-            knowledgeBaseSelector.disabled = false;
-            document.getElementById('openSessionButton').disabled = false;
         } else {
-            // If no indexes are configured, keep the controls disabled but inform the user.
-            console.warn("No search indexes found in configuration.");
+            // If the selector is not present, just enable the session button
             const openSessionButton = document.getElementById('openSessionButton');
-            openSessionButton.textContent = 'Configuration Incomplete';
-            openSessionButton.title = 'Please configure at least one AZURE_COGNITIVE_SEARCH_INDEX in the .env file.';
+            if (openSessionButton) openSessionButton.disabled = false;
         }
 
-        // Event listener for prompt selector
-        const promptSelector = document.getElementById('promptSelector');
-        promptSelector.addEventListener('change', switchPrompt);
+        // Set prompt and knowledge base based on conference selection
+        if (conference) {
+            let promptName = 'superintelligence_prompt';
+            let kbMatch = '';
+            if (conference === 'agi') {
+                promptName = 'four_gifts_prompt';
+                kbMatch = 'four gifts';
+            } else if (conference === 'cogsci') {
+                promptName = 'superintelligence_prompt';
+                kbMatch = 'super intelligence';
+            }
+            currentPrompt = promptName;
+            // Set prompt selector if present
+            const promptSelector = document.getElementById('promptSelector');
+            if (promptSelector) promptSelector.value = promptName;
+            // Set knowledge base selector if present and still in DOM
+            if (kbMatch && knowledgeBaseSelector) {
+                for (const friendlyName in config.cognitiveSearchIndices) {
+                    if (friendlyName.toLowerCase().includes(kbMatch)) {
+                        knowledgeBaseSelector.value = config.cognitiveSearchIndices[friendlyName];
+                        setDataSources(config.azureCogSearchEndpoint, config.azureCogSearchKey, config.cognitiveSearchIndices[friendlyName]);
+                        break;
+                    }
+                }
+            }
+        }
 
         // Load the initial prompt
         await loadPrompt(currentPrompt);
@@ -382,8 +408,14 @@ async function connectAvatar() {
         );
 
         // Set data sources and initialize messages
+        let indexName = null;
         const knowledgeBaseSelector = document.getElementById('knowledgeBase');
-        const indexName = knowledgeBaseSelector.value;
+        if (knowledgeBaseSelector) {
+            indexName = knowledgeBaseSelector.value;
+        } else if (config.cognitiveSearchIndices && Object.values(config.cognitiveSearchIndices).length > 0) {
+            // Use the first available index if present
+            indexName = Object.values(config.cognitiveSearchIndices)[0];
+        }
         setDataSources(config.azureCogSearchEndpoint, config.azureCogSearchKey, indexName);
         messages = [];
         if (config.systemPrompt) {
@@ -418,8 +450,14 @@ async function connectAvatar() {
         SpeechSDK.AudioConfig.fromDefaultMicrophoneInput()
     );
 
+    let indexName = null;
     const knowledgeBaseSelector = document.getElementById('knowledgeBase');
-    const indexName = knowledgeBaseSelector.value;
+    if (knowledgeBaseSelector) {
+        indexName = knowledgeBaseSelector.value;
+    } else if (config.cognitiveSearchIndices && Object.values(config.cognitiveSearchIndices).length > 0) {
+        // Use the first available index if present
+        indexName = Object.values(config.cognitiveSearchIndices)[0];
+    }
     setDataSources(config.azureCogSearchEndpoint, config.azureCogSearchKey, indexName);
 
     const systemPrompt = config.systemPrompt;

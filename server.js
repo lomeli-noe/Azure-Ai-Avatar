@@ -34,8 +34,9 @@ fs.watchFile(promptFilePath, (curr, prev) => {
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '')));
 
+// Serve the new entry page at root
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'chat.html'));
+  res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 // Endpoint to get the configuration
