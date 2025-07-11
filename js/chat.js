@@ -481,6 +481,13 @@ async function connectAvatar() {
         document.getElementById('microphone').disabled = false;
         document.getElementById('stopSession').disabled = false;
         sessionActive = true;
+        
+        // Auto-start microphone
+        startMicrophone();
+        document.getElementById('microphone').textContent = '🛑 Stop Microphone';
+        
+        // Auto-start the conversation with the introduction
+        autoStartConversation();
         return; // Skip the rest of the function for WebRTC setup
     }
 
@@ -610,7 +617,14 @@ function setupWebRTC(iceServerUrl, iceServerUsername, iceServerCredential) {
                 }
                 setTimeout(() => { 
                     console.log('Session marked as active.');
-                    sessionActive = true; 
+                    sessionActive = true;
+                    
+                    // Auto-start microphone
+                    startMicrophone();
+                    document.getElementById('microphone').textContent = '🛑 Stop Microphone';
+                    
+                    // Auto-start the conversation with the introduction
+                    autoStartConversation();
                 }, 1000); // Session is active
             };
         }
@@ -686,569 +700,169 @@ function setDataSources(endpoint, key, indexName) {
             authentication: {
                 type: 'api_key',
                 key: key
-            },
-            semantic_configuration: '',
-            query_type: 'simple',
-            fields_mapping: {},
-            in_scope: true,
-            role_information: config.systemPrompt
+            }
         }
     }];
+    
     console.log('Data sources configured:', dataSources);
     console.log("[DEBUG] Data source configuration complete. Length:", dataSources.length);
 }
 
-// =================== CLEAN GPT RESPONSE ===================
-function cleanGPTResponse(text) {
-    // Remove document citations like [doc1], [doc2], etc.
-    let cleanedText = text.replace(/\[doc\d+\]/gi, '');
+// =================== AUTO-START CONVERSATION ===================
+async function autoStartConversation() {
+    console.log('Auto-starting conversation with introduction...');
     
-    // Remove other common citation patterns
-    cleanedText = cleanedText.replace(/\[\d+\]/g, ''); // Remove [1], [2], etc.
-    cleanedText = cleanedText.replace(/\[citation:\s*\d+\]/gi, ''); // Remove [citation: 1], etc.
-    cleanedText = cleanedText.replace(/\[ref\s*\d+\]/gi, ''); // Remove [ref1], [ref 1], etc.
-    
-    // Remove multiple spaces that might be left after removing citations
-    cleanedText = cleanedText.replace(/\s+/g, ' ');
-    
-    // Trim any leading/trailing whitespace
-    cleanedText = cleanedText.trim();
-    
-    return cleanedText;
-}
-
-// =================== SPEECH TEXT CLEANUP ===================
-function cleanupSpeechText(text) {
-    // Common speech recognition error corrections
-    const corrections = {
-        'gib mir': 'give me',
-        'stucki mit': 'document',
-        'dokument': 'document',
-        'zusammenfassung': 'summary',
-        'was ist': 'what is',
-        'tell mir': 'tell me',
-        'sumary': 'summary',
-        'summery': 'summary',
-        'documnet': 'document',
-        'documen': 'document'
-    };
-    
-    // Filter out obvious echo/garbage patterns
-    const echoPatterns = [
-        /bhk flat for sale/i,  // Real estate listings
-        /kochi|kakkanad/i,     // Place names that shouldn't appear
-        /for sale/i,           // Commercial phrases
-        /\d+\s*bhk/i,          // Real estate patterns
-        /apartment|property/i   // Real estate terms
-    ];
-    
-    // Check if this looks like echo or garbage
-    for (const pattern of echoPatterns) {
-        if (pattern.test(text)) {
-            console.log(`Filtered out potential echo/garbage: "${text}"`);
-            return '';
-        }
-    }
-    
-    let cleanedText = text.toLowerCase();
-    
-    // Apply corrections
-    for (const [error, correction] of Object.entries(corrections)) {
-        cleanedText = cleanedText.replace(new RegExp(error, 'gi'), correction);
-    }
-    
-    // Capitalize first letter
-    cleanedText = cleanedText.charAt(0).toUpperCase() + cleanedText.slice(1);
-    
-    return cleanedText;
-}
-
-// =================== TEST SPEECH SERVICE CONNECTION ===================
-async function testSpeechServiceConnection(cogSvcRegion, cogSvcSubKey) {
-    console.log("Testing Speech Service connection...");
-    
-    try {
-        // Create a minimal config to test authentication
-        const testConfig = SpeechSDK.SpeechConfig.fromSubscription(cogSvcSubKey, cogSvcRegion);
-        testConfig.speechRecognitionLanguage = "en-US";
-        
-        // Create a simple recognizer for testing
-        const testRecognizer = new SpeechSDK.SpeechRecognizer(testConfig);
-        
-        return new Promise((resolve, reject) => {
-            let connectionTested = false;
-            
-            const timeout = setTimeout(() => {
-                if (!connectionTested) {
-                    connectionTested = true;
-                    console.log("Connection test timed out - this might indicate network issues");
-                    testRecognizer.close();
-                    resolve(false);
-                }
-            }, 10000); // 10 second timeout
-            
-            testRecognizer.canceled = (s, e) => {
-                if (!connectionTested) {
-                    connectionTested = true;
-                    clearTimeout(timeout);
-                    console.error("Connection test failed:", e.reason, e.errorDetails);
-                    testRecognizer.close();
-                    resolve(false);
-                }
-            };
-            
-            testRecognizer.sessionStarted = (s, e) => {
-                if (!connectionTested) {
-                    connectionTested = true;
-                    clearTimeout(timeout);
-                    console.log("Speech Service connection test successful");
-                    testRecognizer.close();
-                    resolve(true);
-                }
-            };
-            
-            // Start recognition briefly to test connection
-            testRecognizer.startContinuousRecognitionAsync(
-                () => {
-                    console.log("Connection test recognition started");
-                    // Stop immediately after starting to test connection
-                    setTimeout(() => {
-                        if (testRecognizer && !connectionTested) {
-                            testRecognizer.stopContinuousRecognitionAsync();
-                        }
-                    }, 2000);
-                },
-                err => {
-                    if (!connectionTested) {
-                        connectionTested = true;
-                        clearTimeout(timeout);
-                        console.error("Connection test failed to start:", err);
-                        testRecognizer.close();
-                        resolve(false);
-                    }
-                }
-            );
-        });
-    } catch (error) {
-        console.error("Error during connection test:", error);
-        return false;
-    }
-}
-
-// =================== SPEECH-TO-TEXT (STT) ===================
-function startMicrophone() {
-    console.log("Starting microphone...");
-    
-    // Check if Speech SDK is available
-    if (typeof SpeechSDK === 'undefined') {
-        console.error("Speech SDK not loaded. Make sure the script is included in HTML.");
-        alert("Speech SDK is not loaded. Please refresh the page and try again.");
-        return;
-    }
-    
-    console.log("Speech SDK is available, version:", SpeechSDK.version || "unknown");
-    
-    const cogSvcRegion = config.azureSpeechRegion;
-    const cogSvcSubKey = config.azureSpeechKey;
-    
-    console.log("Speech config region:", cogSvcRegion);
-    console.log("Speech key available:", !!cogSvcSubKey);
-    
-    if (!cogSvcRegion || !cogSvcSubKey) {
-        console.error("Missing speech configuration");
-        alert("Speech recognition is not configured. Please check your Azure Speech Service credentials.");
-        return;
-    }
-    
-    // Test connection first
-    testSpeechServiceConnection(cogSvcRegion, cogSvcSubKey).then(connectionOk => {
-        if (!connectionOk) {
-            console.error("Speech Service connection test failed");
-            alert("Cannot connect to Azure Speech Service. Please check your credentials and internet connection.");
-            return;
-        }
-        
-        // Check microphone permissions (non-blocking)
-        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-            navigator.mediaDevices.getUserMedia({ audio: true })
-                .then(stream => {
-                    console.log("Microphone permission granted");
-                    // Stop the stream since we just needed to check permissions
-                    stream.getTracks().forEach(track => track.stop());
-                    // Continue with speech recognition setup
-                    setupSpeechRecognizer();
-                })
-                .catch(error => {
-                    console.error("Microphone permission denied or not available:", error);
-                    // Try to continue anyway - Azure SDK might handle permissions differently
-                    setupSpeechRecognizer();
-                });
-        } else {
-            console.error("getUserMedia not supported by browser");
-            // Try to continue anyway
-            setupSpeechRecognizer();
-        }
-    });
-}
-
-function setupSpeechRecognizer() {
-    console.log("setupSpeechRecognizer called");
-    const cogSvcRegion = config.azureSpeechRegion;
-    const cogSvcSubKey = config.azureSpeechKey;
-    
-    console.log("Speech config - Region:", cogSvcRegion, "Key available:", !!cogSvcSubKey);
-    
-    // Validate configuration
-    if (!validateSpeechConfig(cogSvcRegion, cogSvcSubKey)) {
-        alert("Speech recognition configuration is invalid. Please check your Azure Speech Service credentials.");
-        return;
-    }
-
-    // Ensure only one recognizer is active at a time
-    if (speechRecognizer) {
+    // Wait a moment to ensure everything is properly initialized
+    setTimeout(async () => {
         try {
-            speechRecognizer.close();
+            const introductionMessage = "Hello! I'm an AI avatar trained to answer questions about the conference paper 'Four Gifts From the Founders of AI.' I'm here to help you explore this research. Feel free to ask me any question about the paper, or if you'd prefer, I can suggest some interesting questions to get us started. What would you like to know?";
+            
+            // Add the introduction to the chat display
+            addMessage('Assistant', introductionMessage);
+            
+            // Speak the introduction with the avatar
+            await speakWithAvatar(introductionMessage);
+            
+            console.log('Auto-introduction completed successfully');
         } catch (error) {
-            console.error("Error closing existing speech recognizer: ", error);
+            console.error('Error during auto-start conversation:', error);
         }
-        speechRecognizer = null;
-    }
-
-    const speechRecognitionConfig = SpeechSDK.SpeechConfig.fromSubscription(cogSvcSubKey, cogSvcRegion);
-    speechRecognitionConfig.speechRecognitionLanguage = "en-US"; // Force English only
-    // Removed problematic properties to fix websocket error 1007
-    
-    console.log("Creating speech recognizer...");
-    speechRecognizer = new SpeechSDK.SpeechRecognizer(
-        speechRecognitionConfig,
-        SpeechSDK.AudioConfig.fromDefaultMicrophoneInput()
-    );
-    
-    console.log("Speech recognizer created successfully");
-
-    speechRecognizer.recognizing = (s, e) => {
-        // Don't log or process partial recognition while avatar is speaking
-        if (!isSpeaking) {
-            console.log(`Recognizing: ${e.result.text}`);
-        }
-    };
-
-    speechRecognizer.recognized = (s, e) => {
-        console.log("Recognition event fired, reason:", e.result.reason, "offset:", e.result.offset, "duration:", e.result.duration);
-        
-        // Don't process speech input while the avatar is speaking
-        if (isSpeaking) {
-            console.log("Avatar is speaking, ignoring speech input to prevent echo");
-            return;
-        }
-        
-        if (e.result.reason === SpeechSDK.ResultReason.RecognizedSpeech) {
-            let text = e.result.text.trim();
-            console.log(`Recognized: "${text}" (length: ${text.length})`);
-            
-            // Check if we actually have meaningful text
-            if (!text || text.length === 0) {
-                console.log("Empty text recognized, ignoring...");
-                return;
-            }
-            
-            // Clean up common speech recognition errors
-            text = cleanupSpeechText(text);
-            console.log(`Cleaned text: "${text}" (length: ${text.length})`);
-            
-            // Double-check after cleanup that we still have meaningful text
-            if (!text || text.trim().length === 0) {
-                console.log("Text became empty after cleanup, ignoring...");
-                return;
-            }
-
-            // Send the user message to the GPT model (it will add the message to chat)
-            sendMessageToGPT(text);
-        } else if (e.result.reason === SpeechSDK.ResultReason.NoMatch) {
-            console.log("No speech could be recognized.");
-        } else if (e.result.reason === SpeechSDK.ResultReason.Canceled) {
-            const cancellation = SpeechSDK.CancellationDetails.fromResult(e.result);
-            console.error(`Speech recognition canceled: ${cancellation.errorDetails}`);
-        }
-    };
-
-    // Add error handler for the speech recognizer
-    speechRecognizer.sessionStarted = (s, e) => {
-        console.log("Speech recognition session started");
-    };
-
-    speechRecognizer.sessionStopped = (s, e) => {
-        console.log("Speech recognition session stopped");
-    };
-
-    speechRecognizer.speechStartDetected = (s, e) => {
-        console.log("Speech start detected");
-    };
-
-    speechRecognizer.speechEndDetected = (s, e) => {
-        console.log("Speech end detected - offset:", e.offset, "duration:", e.duration);
-    };
-
-    speechRecognizer.canceled = (s, e) => {
-        console.error("Speech recognition canceled:", e.reason);
-        console.error("Cancellation reason code:", e.reason);
-        console.error("Error code:", e.errorCode);
-        console.error("Error details:", e.errorDetails);
-        
-        // Reset microphone button state when recognition is canceled
-        const micButton = document.getElementById('microphone');
-        if (micButton) {
-            micButton.textContent = '🎤 Start Microphone';
-        }
-        
-        if (e.reason === SpeechSDK.CancellationReason.Error) {
-            console.error("Cancellation due to error. Error details:", e.errorDetails);
-            console.error("Error code:", e.errorCode);
-            
-            // Common error scenarios
-            if (e.errorDetails && e.errorDetails.includes("401")) {
-                console.error("Authentication failed - check your Speech Service key");
-                alert("Authentication failed. Please check your Azure Speech Service key.");
-            } else if (e.errorDetails && e.errorDetails.includes("403")) {
-                console.error("Access forbidden - check your Speech Service region and key");
-                alert("Access forbidden. Please check your Azure Speech Service region and key.");
-            } else if (e.errorDetails && e.errorDetails.includes("Connection")) {
-                console.error("Connection issue - check internet connection");
-                alert("Connection issue. Please check your internet connection.");
-            } else {
-                console.error("Unknown error:", e.errorDetails);
-                alert(`Speech recognition error: ${e.errorDetails}`);
-            }
-        } else if (e.reason === SpeechSDK.CancellationReason.EndOfStream) {
-            console.log("Speech recognition ended - end of stream");
-        } else {
-            console.error("Speech recognition canceled for unknown reason:", e.reason);
-        }
-    };
-
-    console.log("Starting continuous recognition...");
-    speechRecognizer.startContinuousRecognitionAsync(
-        () => {
-            console.log("Speech recognition started.");
-            document.getElementById('stopSpeaking').disabled = false;
-        },
-        err => {
-            console.error("Failed to start speech recognition: ", err);
-        }
-    );
+    }, 500); // Short delay to ensure avatar is fully ready
 }
 
-// =================== STOP SPEECH-TO-TEXT (STT) ===================
-function stopMicrophone() {
-    if (speechRecognizer) {
-        speechRecognizer.stopContinuousRecognitionAsync(
-            () => {
-                console.log("Speech recognition stopped.");
-                if (speechRecognizer) {
-                    speechRecognizer.close();
-                    speechRecognizer = null;
-                }
-            },
-            err => {
-                console.error("Failed to stop speech recognition: ", err);
-                // Even if stopping fails, try to clean up
-                if (speechRecognizer) {
-                    try {
-                        speechRecognizer.close();
-                    } catch (closeError) {
-                        console.error("Error closing speech recognizer: ", closeError);
-                    }
-                    speechRecognizer = null;
-                }
-            }
-        );
+// =================== MESSAGE DISPLAY FUNCTIONS ===================
+function addMessage(role, content) {
+    const chatHistory = document.getElementById('chat-history');
+    if (!chatHistory) {
+        console.error('Chat history element not found');
+        return;
     }
+    
+    const messageDiv = document.createElement('div');
+    messageDiv.className = role === 'User' ? 'user-message' : 'assistant-message';
+    messageDiv.textContent = content;
+    chatHistory.appendChild(messageDiv);
+    
+    // Scroll to bottom
+    chatHistory.scrollTop = chatHistory.scrollHeight;
 }
 
 // =================== SEND MESSAGE TO GPT ===================
 async function sendMessageToGPT(userMessage) {
-    // Validate that we have a meaningful message
-    if (!userMessage || userMessage.trim().length === 0) {
-        console.log("Empty or whitespace-only message, not sending to GPT");
-        return;
-    }
-
-    // Ensure the system prompt is in the messages if not already there
-    if (messages.length === 0 || messages[0].role !== 'system') {
-        if (config.systemPrompt) {
-            messages.unshift({ role: 'system', content: config.systemPrompt });
-        }
-    }
-
-    // Extra logging for debugging RAG routing
-    console.log("=== SEND MESSAGE TO GPT DEBUG ===");
-    console.log("[DEBUG] User message:", userMessage);
-    console.log("[DEBUG] Current prompt setting:", currentPrompt);
-    console.log("[DEBUG] Current dataSources length:", dataSources.length);
-    console.log("[DEBUG] DataSources configured:", dataSources.length > 0 ? "YES" : "NO");
-    if (dataSources.length > 0) {
-        console.log("[DEBUG] DataSources config:", JSON.stringify(dataSources[0].parameters, null, 2));
-        console.log("[DEBUG] Active search index:", dataSources[0].parameters.index_name);
-    }
-    console.log("[DEBUG] System prompt preview:", config.systemPrompt?.substring(0, 100) + "...");
-    console.log("=====================================");
-
-    // Add the user message to the chat history
-    addMessage('user', userMessage);
-
-    // Check if this is an explicit summary request - only block RAG for very specific summary requests
-    const explicitSummaryKeywords = [
-        'give me a summary', 
-        'provide a summary',
-        'summarize this document',
-        'summarize this paper',
-        'document summary',
-        'paper summary',
-        'gib mir summary', // Common German mistranscription
-        'sumary', // Common misspelling when asking for summary
-        'summery' // Common misspelling when asking for summary
-    ];
-    const isExplicitSummaryRequest = explicitSummaryKeywords.some(keyword => 
-        userMessage.toLowerCase().includes(keyword.toLowerCase())
-    );
-
-    // Prepare the request payload
-    const requestPayload = {
-        messages: messages.concat([{ role: 'user', content: userMessage }]),
-        temperature: 0.7,
-        max_tokens: 150,
-        top_p: 1.0,
-        frequency_penalty: 0.0,
-        presence_penalty: 0.0
-    };
-
-    // Always add data sources unless it's an explicit summary request
-    if (!isExplicitSummaryRequest && dataSources.length > 0) {
-        requestPayload.data_sources = dataSources;
-        console.log("[DEBUG] Added dataSources to requestPayload:", JSON.stringify(dataSources, null, 2));
-    } else {
-        console.log("[DEBUG] Explicit summary request or no data sources, not adding dataSources to requestPayload.");
-    }
-
-    console.log(`[DEBUG] Request type: ${isExplicitSummaryRequest ? 'Explicit Summary' : 'Regular/Specific'}, Using RAG: ${!isExplicitSummaryRequest && dataSources.length > 0}`);
-    console.log("[DEBUG] Full requestPayload:", JSON.stringify(requestPayload, null, 2));
-
+    console.log('Sending message to GPT:', userMessage);
+    
+    // Add user message to chat
+    addMessage('User', userMessage);
+    
+    // Add user message to conversation
+    messages.push({ role: 'user', content: userMessage });
+    
     try {
-        // Send the request to the GPT API
-        console.log("[DEBUG] Sending request to /api/gpt...");
-        console.log("[DEBUG] Request URL: /api/gpt");
-        console.log("[DEBUG] Request method: POST");
-        console.log("[DEBUG] Request headers:", { 'Content-Type': 'application/json' });
-        console.log("[DEBUG] Request body size:", JSON.stringify(requestPayload).length, "characters");
+        const requestData = {
+            messages: messages,
+            temperature: 0.7,
+            max_tokens: 1000,
+            top_p: 0.95,
+            frequency_penalty: 0,
+            presence_penalty: 0
+        };
+        
+        // Add data sources for RAG if configured
+        if (dataSources && dataSources.length > 0) {
+            requestData.data_sources = dataSources;
+        }
+        
+        console.log('[DEBUG] Sending request to /api/gpt:');
+        console.log('- Messages count:', requestData.messages.length);
+        console.log('- Has data sources:', !!requestData.data_sources);
+        console.log('- Data sources count:', requestData.data_sources?.length || 0);
         
         const response = await fetch('/api/gpt', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify(requestPayload),
+            body: JSON.stringify(requestData),
         });
-
-        console.log("[DEBUG] Fetch completed");
-        console.log("[DEBUG] Response received");
-        console.log("[DEBUG] Response status:", response.status);
-        console.log("[DEBUG] Response ok:", response.ok);
-        console.log("[DEBUG] Response headers:", [...response.headers.entries()]);
-
+        
         if (!response.ok) {
-            const errorText = await response.text();
-            console.error("[DEBUG] Server error response (raw):", errorText);
-            
-            // Try to parse as JSON to get detailed error info
-            let errorDetails = errorText;
-            
-            try {
-                const errorJson = JSON.parse(errorText);
-                console.error("[DEBUG] Parsed error JSON:", errorJson);
-                
-                if (errorJson.message) {
-                    errorDetails = errorJson.message;
-                } else if (errorJson.details) {
-                    errorDetails = errorJson.details;
-                } else if (errorJson.error) {
-                    errorDetails = errorJson.error;
-                }
-                
-            } catch (parseError) {
-                console.error("[DEBUG] Failed to parse error JSON:", parseError);
-                console.error("[DEBUG] Using raw error text:", errorText);
-                // If not JSON, use the raw text
-                errorDetails = errorText;
-            }
-            
-            throw new Error(`HTTP error! status: ${response.status}, details: ${errorDetails}`);
+            throw new Error(`HTTP error! status: ${response.status}`);
         }
-
+        
         const responseData = await response.json();
-        console.log("[DEBUG] Full server response:", JSON.stringify(responseData, null, 2));
-        let gptMessage = responseData.choices[0].message.content.trim();
+        const gptMessage = responseData.choices[0].message.content;
         
-        // Clean up document citations before processing
-        gptMessage = cleanGPTResponse(gptMessage);
+        // Add GPT response to conversation
+        messages.push({ role: 'assistant', content: gptMessage });
         
-        console.log(`GPT: ${gptMessage}`);
-
-        // If this was an explicit summary request and we still got a RAG error, provide immediate fallback
-        if (isExplicitSummaryRequest && gptMessage.includes("The requested information is not available in the retrieved data")) {
-            console.log("Explicit summary request got RAG error, providing direct summary");
-            let directSummary = "";
-            if (currentPrompt === 'four_gifts_prompt') {
-                directSummary = "The Four Gifts is a document that explores four key principles or concepts that are meant to guide personal development and understanding. It presents these gifts as foundational elements for growth and wisdom.";
-            } else if (currentPrompt === 'superintelligence_prompt') {
-                directSummary = "Designing Safe SuperIntelligence is a document that addresses the critical challenges of developing artificial intelligence systems that surpass human cognitive abilities while ensuring they remain safe and aligned with human values. It explores strategies for governance, risk mitigation, and responsible development of superintelligent AI systems.";
-            }
-            if (directSummary) {
-                addMessage('assistant', directSummary);
-                await speakWithAvatar(directSummary);
-                return;
-            }
-        }
-
-        // Check for repeated error messages to prevent loops (only for non-explicit-summary requests)
-        if (!isExplicitSummaryRequest && gptMessage.includes("The requested information is not available in the retrieved data")) {
-            const lastMessages = messages.slice(-3); // Check last 3 messages
-            const recentErrorCount = lastMessages.filter(msg => 
-                msg.role === 'assistant' && 
-                msg.content.includes("The requested information is not available in the retrieved data")
-            ).length;
-            
-            if (recentErrorCount >= 2) {
-                console.log("Detected repeated RAG errors, providing fallback response");
-                const fallbackMessage = "I'm having trouble accessing the specific information right now. Could you try asking for a summary of the document instead, or rephrase your question?";
-                addMessage('assistant', fallbackMessage);
-                await speakWithAvatar(fallbackMessage);
-                return;
-            }
-        }
-
-        // Add the GPT message to the chat history
-        addMessage('assistant', gptMessage);
-
+        // Add GPT response to chat display
+        addMessage('Assistant', gptMessage);
+        
         // Speak the GPT message using the avatar
         await speakWithAvatar(gptMessage);
-
+        
     } catch (error) {
-        console.error('Error communicating with GPT:', error);
-        const errorMessage = 'Error communicating with GPT. Please try again later.';
-        addMessage('assistant', errorMessage);
+        console.error('Error sending message to GPT:', error);
+        const errorMessage = 'Sorry, I encountered an error processing your request. Please try again.';
+        addMessage('Assistant', errorMessage);
         await speakWithAvatar(errorMessage);
     }
 }
 
-// =================== ADD MESSAGE TO CHAT ===================
-function addMessage(role, content) {
-    messages.push({ role, content });
-    const chatHistory = document.getElementById('chat-history');
-    const messageElement = document.createElement('div');
-    messageElement.className = `message ${role}`;
-    messageElement.textContent = content;
-    chatHistory.appendChild(messageElement);
-    chatHistory.scrollTop = chatHistory.scrollHeight; // Auto-scroll to the bottom
+// =================== MICROPHONE FUNCTIONS ===================
+function startMicrophone() {
+    if (!speechRecognizer) {
+        console.error("Speech recognizer is not initialized.");
+        return;
+    }
+
+    console.log("Starting continuous speech recognition...");
+    
+    speechRecognizer.recognizing = (s, e) => {
+        console.log("Recognizing: " + e.result.text);
+    };
+
+    speechRecognizer.recognized = (s, e) => {
+        if (e.result.reason === SpeechSDK.ResultReason.RecognizedSpeech && e.result.text.trim() !== '') {
+            console.log("Recognized: " + e.result.text);
+            sendMessageToGPT(e.result.text);
+        }
+    };
+
+    speechRecognizer.canceled = (s, e) => {
+        console.log("Speech recognition canceled: " + e.errorDetails);
+        if (e.reason === SpeechSDK.CancellationReason.Error) {
+            console.error("Speech recognition error: " + e.errorDetails);
+        }
+    };
+
+    speechRecognizer.sessionStopped = (s, e) => {
+        console.log("Speech recognition session stopped.");
+    };
+
+    speechRecognizer.startContinuousRecognitionAsync(
+        () => {
+            console.log("Continuous speech recognition started successfully.");
+        },
+        err => {
+            console.error("Failed to start speech recognition: ", err);
+            document.getElementById('microphone').textContent = '🎤 Start Microphone';
+        }
+    );
+}
+
+function stopMicrophone() {
+    if (speechRecognizer) {
+        console.log("Stopping speech recognition...");
+        speechRecognizer.stopContinuousRecognitionAsync(
+            () => {
+                console.log("Speech recognition stopped successfully.");
+            },
+            err => {
+                console.error("Failed to stop speech recognition: ", err);
+            }
+        );
+    }
 }
 
 // =================== SPEAK WITH AVATAR ===================
@@ -1261,109 +875,14 @@ async function speakWithAvatar(message) {
     isSpeaking = true;
     document.getElementById('stopSpeaking').disabled = false;
     
-    // Temporarily pause speech recognition to prevent echo
-    const wasRecognizing = speechRecognizer && speechRecognizer.sessionId;
-    if (wasRecognizing) {
-        console.log("Temporarily pausing speech recognition during avatar speech");
-        try {
-            await new Promise((resolve, reject) => {
-                speechRecognizer.stopContinuousRecognitionAsync(
-                    () => {
-                        console.log("Speech recognition paused for avatar speech");
-                        resolve();
-                    },
-                    err => {
-                        console.error("Failed to pause speech recognition:", err);
-                        resolve(); // Continue anyway
-                    }
-                );
-            });
-        } catch (error) {
-            console.error("Error pausing speech recognition:", error);
-        }
-    }
-
     try {
+        console.log('Avatar speaking:', message.substring(0, 50) + '...');
         await avatarSynthesizer.speakTextAsync(message);
+        console.log('Avatar finished speaking');
     } catch (error) {
         console.error("Error speaking with avatar:", error);
     } finally {
         isSpeaking = false;
         document.getElementById('stopSpeaking').disabled = true;
-        
-        // Resume speech recognition after avatar finishes speaking
-        if (wasRecognizing) {
-            console.log("Resuming speech recognition after avatar speech");
-            setTimeout(() => {
-                try {
-                    speechRecognizer.startContinuousRecognitionAsync(
-                        () => {
-                            console.log("Speech recognition resumed after avatar speech");
-                        },
-                        err => {
-                            console.error("Failed to resume speech recognition:", err);
-                        }
-                    );
-                } catch (error) {
-                    console.error("Error resuming speech recognition:", error);
-                }
-            }, 500); // Small delay to ensure audio has finished
-        }
     }
-}
-
-// =================== DOWNLOAD FUNCTION ===================
-async function downloadFile(filename, content) {
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-    if (window.navigator.msSaveBlob) {
-        // For IE and Edge
-        window.navigator.msSaveBlob(blob, filename);
-    } else {
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    }
-}
-
-// =================== INITIATE CONVERSATION ===================
-function initiateConversation() {
-    clearChatHistory();
-    const welcomeMessage = "Hello! I'm your AI assistant. How can I help you today?";
-    addMessage('assistant', welcomeMessage);
-    speakWithAvatar(welcomeMessage);
-}
-
-// =================== ERROR HANDLING ===================
-window.addEventListener('error', (event) => {
-    console.error('Global error caught:', event);
-    alert('An unexpected error occurred. Please try again later.');
-});
-
-// Function to validate and debug speech configuration
-function validateSpeechConfig(cogSvcRegion, cogSvcSubKey) {
-    console.log("=== Speech Configuration Validation ===");
-    console.log("Region:", cogSvcRegion);
-    console.log("Key length:", cogSvcSubKey ? cogSvcSubKey.length : "undefined");
-    console.log("Key starts with:", cogSvcSubKey ? cogSvcSubKey.substring(0, 8) + "..." : "undefined");
-    
-    // Check for common issues
-    if (!cogSvcRegion || cogSvcRegion.trim() === '') {
-        console.error("ERROR: Speech Service region is empty or undefined");
-        return false;
-    }
-    
-    if (!cogSvcSubKey || cogSvcSubKey.trim() === '') {
-        console.error("ERROR: Speech Service key is empty or undefined");
-        return false;
-    }
-    
-    if (cogSvcSubKey.length !== 32) {
-        console.warn("WARNING: Speech Service key length is not 32 characters (expected length)");
-    }
-    
-    console.log("Configuration validation passed");
-    return true;
 }
