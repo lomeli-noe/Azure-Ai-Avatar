@@ -16,7 +16,6 @@ let systemPrompt = '';
 function loadPrompt() {
     try {
         systemPrompt = fs.readFileSync(promptFilePath, 'utf-8');
-        console.log('System prompt loaded successfully.');
     } catch (error) {
         console.error('Could not read prompt.txt:', error);
     }
@@ -34,6 +33,12 @@ fs.watchFile(promptFilePath, (curr, prev) => {
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '')));
 
+// Log all requests
+app.use((req, res, next) => {
+    console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+    next();
+});
+
 // Serve the new entry page at root
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
@@ -50,8 +55,6 @@ app.get('/api/config', (req, res) => {
             searchIndexes[friendlyName] = process.env[key];
         }
     }
-
-    console.log("Found search indexes:", searchIndexes); // Added for server-side debugging
 
     res.json({
         azureSpeechKey: process.env.AZURE_SPEECH_KEY,
@@ -124,44 +127,172 @@ app.post('/api/prompt', (req, res) => {
   }
 });
 
+// Test endpoint to verify server is running
+app.get('/api/test', (req, res) => {
+    console.log('Test endpoint called');
+    res.json({ message: 'Server is running', timestamp: new Date().toISOString() });
+});
+
 // Endpoint to handle GPT-4 chat requests
 app.post('/api/gpt', async (req, res) => {
+    console.log('=== GPT ENDPOINT CALLED ===');
+    console.log('Request received at:', new Date().toISOString());
+    console.log('Process ID:', process.pid);
+    console.log('Server port:', port);
+    
     try {
         const requestData = req.body;
-
+        console.log('Request keys:', Object.keys(requestData));
+        console.log('Has data_sources:', !!requestData.data_sources);
+        if (requestData.data_sources) {
+            console.log('Data sources count:', requestData.data_sources.length);
+            console.log('First data source type:', requestData.data_sources[0]?.type);
+            console.log('Search index:', requestData.data_sources[0]?.parameters?.index_name);
+        }
+        console.log('Messages count:', requestData.messages?.length);
+        console.log('Last user message:', requestData.messages?.slice(-1)[0]?.content);
+        
         const endpoint = process.env.AZURE_OPENAI_ENDPOINT;
         const deploymentName = process.env.AZURE_OPENAI_DEPLOYMENT_NAME;
         const apiVersion = process.env.AZURE_OPENAI_API_VERSION;
+        const apiKey = process.env.AZURE_OPENAI_KEY;
 
-        // MODIFIED: Removed '/extensions' from the path as it may not be required
-        // for all Azure OpenAI configurations and could be the source of the 404 error.
-        const url = `${endpoint}/openai/deployments/${deploymentName}/chat/completions?api-version=${apiVersion}`;
+        // Validate required environment variables
+        if (!endpoint) {
+            throw new Error('AZURE_OPENAI_ENDPOINT is not configured');
+        }
+        if (!deploymentName) {
+            throw new Error('AZURE_OPENAI_DEPLOYMENT_NAME is not configured');
+        }
+        if (!apiVersion) {
+            throw new Error('AZURE_OPENAI_API_VERSION is not configured');
+        }
+        if (!apiKey) {
+            throw new Error('AZURE_OPENAI_KEY is not configured');
+        }
 
-        // Add detailed logging to debug the 404 error
-        console.log('Forwarding request to Azure OpenAI at URL:', url);
-        console.log('Request body:', JSON.stringify(requestData, null, 2));
+        // Check if the request includes data_sources (RAG/On Your Data)
+        const hasDataSources = requestData.data_sources && requestData.data_sources.length > 0;
+        
+        // Try different API versions and endpoints for RAG
+        let url, ragApproach;
+        if (hasDataSources) {
+            // Try the newer API version first
+            ragApproach = 'chat_completions_with_data';
+            url = `${endpoint}/openai/deployments/${deploymentName}/chat/completions?api-version=2024-02-15-preview`;
+        } else {
+            ragApproach = 'standard';
+            url = `${endpoint}/openai/deployments/${deploymentName}/chat/completions?api-version=${apiVersion}`;
+        }
 
+        console.log('Using URL:', url);
+        console.log('RAG request:', hasDataSources);
+        console.log('RAG approach:', ragApproach);
+        
         const response = await fetch(url, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'api-key': process.env.AZURE_OPENAI_KEY,
+                'api-key': apiKey,
             },
             body: JSON.stringify(requestData),
         });
 
         if (!response.ok) {
             const errorBody = await response.text();
+            
+            // If we get a 404 and we're using RAG, try with a different API version
+            if (response.status === 404 && hasDataSources) {
+                console.log('Current API version not working, trying with 2023-12-01-preview');
+                
+                const fallbackUrl = `${endpoint}/openai/deployments/${deploymentName}/chat/completions?api-version=2023-12-01-preview`;
+                
+                const fallbackResponse = await fetch(fallbackUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'api-key': apiKey,
+                    },
+                    body: JSON.stringify(requestData),
+                });
+                
+                if (!fallbackResponse.ok) {
+                    const fallbackErrorBody = await fallbackResponse.text();
+                    console.log('Fallback API version also failed, trying without RAG');
+                    
+                    // Remove data_sources and try regular endpoint
+                    const noRagRequestData = { ...requestData };
+                    delete noRagRequestData.data_sources;
+                    
+                    const noRagUrl = `${endpoint}/openai/deployments/${deploymentName}/chat/completions?api-version=${apiVersion}`;
+                    
+                    const noRagResponse = await fetch(noRagUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'api-key': apiKey,
+                        },
+                        body: JSON.stringify(noRagRequestData),
+                    });
+                    
+                    if (!noRagResponse.ok) {
+                        const noRagErrorBody = await noRagResponse.text();
+                        console.error('All endpoints failed:', noRagErrorBody);
+                        throw new Error(`Azure OpenAI API error: ${noRagResponse.status}: ${noRagErrorBody}`);
+                    }
+                    
+                    const noRagResponseData = await noRagResponse.json();
+                    console.log('WARNING: Using response without RAG due to API limitations');
+                    res.json(noRagResponseData);
+                    return;
+                }
+                
+                const fallbackResponseData = await fallbackResponse.json();
+                console.log('Successfully used fallback API version with RAG');
+                res.json(fallbackResponseData);
+                return;
+            }
+            
             console.error('Azure OpenAI API error:', errorBody);
             throw new Error(`Azure OpenAI API responded with ${response.status}: ${errorBody}`);
         }
 
         const responseData = await response.json();
+        console.log('Azure OpenAI response received, choices count:', responseData.choices?.length);
+        console.log('Response content preview:', responseData.choices?.[0]?.message?.content?.substring(0, 100) + '...');
+        
+        // Log RAG context if available
+        if (responseData.choices?.[0]?.message?.context) {
+            console.log('RAG context found:', JSON.stringify(responseData.choices[0].message.context, null, 2));
+        }
+        
+        // Log citations if available
+        if (responseData.choices?.[0]?.message?.context?.citations) {
+            console.log('Citations found:', responseData.choices[0].message.context.citations.length);
+            responseData.choices[0].message.context.citations.forEach((citation, index) => {
+                console.log(`Citation ${index + 1}:`, {
+                    title: citation.title,
+                    filepath: citation.filepath,
+                    content_preview: citation.content?.substring(0, 200) + '...'
+                });
+            });
+        }
+        
         res.json(responseData);
 
     } catch (error) {
-        console.error('Error processing GPT request:', error);
-        res.status(500).send('Error processing GPT request');
+        console.error('Error processing GPT request:', error.message);
+        
+        // Always send a proper JSON response
+        const errorResponse = {
+            error: 'Error processing GPT request',
+            message: error.message || 'Unknown error',
+            details: error.toString()
+        };
+        
+        // Set proper headers and send JSON response
+        res.setHeader('Content-Type', 'application/json');
+        res.status(500).json(errorResponse);
     }
 });
 
@@ -190,5 +321,9 @@ app.get('/api/superintelligence-summary', (req, res) => {
 });
 
 app.listen(port, () => {
+  const startupId = Math.random().toString(36).substring(7);
   console.log(`Server is running on http://localhost:${port}`);
+  console.log(`Server startup ID: ${startupId}`);
+  console.log(`Process ID: ${process.pid}`);
+  console.log(`Current time: ${new Date().toISOString()}`);
 });

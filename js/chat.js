@@ -309,6 +309,36 @@ async function loadPrompt(promptName) {
         const promptData = await response.json();
         config.systemPrompt = promptData.prompt;
         console.log(`Prompt "${promptName}" loaded.`);
+        
+        // Auto-switch knowledge base to match the new prompt
+        if (config.cognitiveSearchIndices && Object.values(config.cognitiveSearchIndices).length > 0) {
+            let newIndexName = null;
+            
+            if (promptName === 'four_gifts_prompt') {
+                // Look for Four Gifts index
+                for (const friendlyName in config.cognitiveSearchIndices) {
+                    if (friendlyName.toLowerCase().includes('four gifts')) {
+                        newIndexName = config.cognitiveSearchIndices[friendlyName];
+                        console.log(`Auto-switching to Four Gifts index: ${newIndexName}`);
+                        break;
+                    }
+                }
+            } else if (promptName === 'superintelligence_prompt') {
+                // Look for SuperIntelligence index
+                for (const friendlyName in config.cognitiveSearchIndices) {
+                    if (friendlyName.toLowerCase().includes('super intelligence') || friendlyName.toLowerCase().includes('ai super intelligence')) {
+                        newIndexName = config.cognitiveSearchIndices[friendlyName];
+                        console.log(`Auto-switching to SuperIntelligence index: ${newIndexName}`);
+                        break;
+                    }
+                }
+            }
+            
+            // Update data sources if we found a matching index
+            if (newIndexName) {
+                setDataSources(config.azureCogSearchEndpoint, config.azureCogSearchKey, newIndexName);
+            }
+        }
     } catch (error) {
         console.error('Failed to load prompt:', error);
         alert('Failed to load prompt. Please check the server.');
@@ -407,14 +437,38 @@ async function connectAvatar() {
             SpeechSDK.AudioConfig.fromDefaultMicrophoneInput()
         );
 
-        // Set data sources and initialize messages
+        // Set data sources based on current prompt setting
         let indexName = null;
         const knowledgeBaseSelector = document.getElementById('knowledgeBase');
         if (knowledgeBaseSelector) {
             indexName = knowledgeBaseSelector.value;
         } else if (config.cognitiveSearchIndices && Object.values(config.cognitiveSearchIndices).length > 0) {
-            // Use the first available index if present
-            indexName = Object.values(config.cognitiveSearchIndices)[0];
+            // Auto-select the appropriate index based on current prompt
+            if (currentPrompt === 'four_gifts_prompt') {
+                // Look for Four Gifts index
+                for (const friendlyName in config.cognitiveSearchIndices) {
+                    if (friendlyName.toLowerCase().includes('four gifts')) {
+                        indexName = config.cognitiveSearchIndices[friendlyName];
+                        console.log(`Auto-selected Four Gifts index: ${indexName}`);
+                        break;
+                    }
+                }
+            } else if (currentPrompt === 'superintelligence_prompt') {
+                // Look for SuperIntelligence index
+                for (const friendlyName in config.cognitiveSearchIndices) {
+                    if (friendlyName.toLowerCase().includes('super intelligence') || friendlyName.toLowerCase().includes('ai super intelligence')) {
+                        indexName = config.cognitiveSearchIndices[friendlyName];
+                        console.log(`Auto-selected SuperIntelligence index: ${indexName}`);
+                        break;
+                    }
+                }
+            }
+            
+            // Fallback to first available index if no match found
+            if (!indexName) {
+                indexName = Object.values(config.cognitiveSearchIndices)[0];
+                console.log(`No matching index found for prompt ${currentPrompt}, using fallback: ${indexName}`);
+            }
         }
         setDataSources(config.azureCogSearchEndpoint, config.azureCogSearchKey, indexName);
         messages = [];
@@ -455,8 +509,32 @@ async function connectAvatar() {
     if (knowledgeBaseSelector) {
         indexName = knowledgeBaseSelector.value;
     } else if (config.cognitiveSearchIndices && Object.values(config.cognitiveSearchIndices).length > 0) {
-        // Use the first available index if present
-        indexName = Object.values(config.cognitiveSearchIndices)[0];
+        // Auto-select the appropriate index based on current prompt
+        if (currentPrompt === 'four_gifts_prompt') {
+            // Look for Four Gifts index
+            for (const friendlyName in config.cognitiveSearchIndices) {
+                if (friendlyName.toLowerCase().includes('four gifts')) {
+                    indexName = config.cognitiveSearchIndices[friendlyName];
+                    console.log(`Auto-selected Four Gifts index: ${indexName}`);
+                    break;
+                }
+            }
+        } else if (currentPrompt === 'superintelligence_prompt') {
+            // Look for SuperIntelligence index
+            for (const friendlyName in config.cognitiveSearchIndices) {
+                if (friendlyName.toLowerCase().includes('super intelligence') || friendlyName.toLowerCase().includes('ai super intelligence')) {
+                    indexName = config.cognitiveSearchIndices[friendlyName];
+                    console.log(`Auto-selected SuperIntelligence index: ${indexName}`);
+                    break;
+                }
+            }
+        }
+        
+        // Fallback to first available index if no match found
+        if (!indexName) {
+            indexName = Object.values(config.cognitiveSearchIndices)[0];
+            console.log(`No matching index found for prompt ${currentPrompt}, using fallback: ${indexName}`);
+        }
     }
     setDataSources(config.azureCogSearchEndpoint, config.azureCogSearchKey, indexName);
 
@@ -590,6 +668,11 @@ function disconnectAvatar() {
 
 // =================== SET DATA SOURCES (On Your Data) ===================
 function setDataSources(endpoint, key, indexName) {
+    console.log("[DEBUG] setDataSources called with:");
+    console.log("[DEBUG] - endpoint:", endpoint);
+    console.log("[DEBUG] - key:", key ? `${key.substring(0, 8)}...` : "undefined");
+    console.log("[DEBUG] - indexName:", indexName);
+    
     if (!endpoint || !key || !indexName) {
         console.log('Cognitive Search data source not configured.');
         dataSources = [];
@@ -612,6 +695,7 @@ function setDataSources(endpoint, key, indexName) {
         }
     }];
     console.log('Data sources configured:', dataSources);
+    console.log("[DEBUG] Data source configuration complete. Length:", dataSources.length);
 }
 
 // =================== CLEAN GPT RESPONSE ===================
@@ -648,6 +732,23 @@ function cleanupSpeechText(text) {
         'documnet': 'document',
         'documen': 'document'
     };
+    
+    // Filter out obvious echo/garbage patterns
+    const echoPatterns = [
+        /bhk flat for sale/i,  // Real estate listings
+        /kochi|kakkanad/i,     // Place names that shouldn't appear
+        /for sale/i,           // Commercial phrases
+        /\d+\s*bhk/i,          // Real estate patterns
+        /apartment|property/i   // Real estate terms
+    ];
+    
+    // Check if this looks like echo or garbage
+    for (const pattern of echoPatterns) {
+        if (pattern.test(text)) {
+            console.log(`Filtered out potential echo/garbage: "${text}"`);
+            return '';
+        }
+    }
     
     let cleanedText = text.toLowerCase();
     
@@ -826,11 +927,21 @@ function setupSpeechRecognizer() {
     console.log("Speech recognizer created successfully");
 
     speechRecognizer.recognizing = (s, e) => {
-        console.log(`Recognizing: ${e.result.text}`);
+        // Don't log or process partial recognition while avatar is speaking
+        if (!isSpeaking) {
+            console.log(`Recognizing: ${e.result.text}`);
+        }
     };
 
     speechRecognizer.recognized = (s, e) => {
         console.log("Recognition event fired, reason:", e.result.reason, "offset:", e.result.offset, "duration:", e.result.duration);
+        
+        // Don't process speech input while the avatar is speaking
+        if (isSpeaking) {
+            console.log("Avatar is speaking, ignoring speech input to prevent echo");
+            return;
+        }
+        
         if (e.result.reason === SpeechSDK.ResultReason.RecognizedSpeech) {
             let text = e.result.text.trim();
             console.log(`Recognized: "${text}" (length: ${text.length})`);
@@ -961,7 +1072,7 @@ async function sendMessageToGPT(userMessage) {
         console.log("Empty or whitespace-only message, not sending to GPT");
         return;
     }
-    
+
     // Ensure the system prompt is in the messages if not already there
     if (messages.length === 0 || messages[0].role !== 'system') {
         if (config.systemPrompt) {
@@ -969,32 +1080,35 @@ async function sendMessageToGPT(userMessage) {
         }
     }
 
+    // Extra logging for debugging RAG routing
+    console.log("=== SEND MESSAGE TO GPT DEBUG ===");
+    console.log("[DEBUG] User message:", userMessage);
+    console.log("[DEBUG] Current prompt setting:", currentPrompt);
+    console.log("[DEBUG] Current dataSources length:", dataSources.length);
+    console.log("[DEBUG] DataSources configured:", dataSources.length > 0 ? "YES" : "NO");
+    if (dataSources.length > 0) {
+        console.log("[DEBUG] DataSources config:", JSON.stringify(dataSources[0].parameters, null, 2));
+        console.log("[DEBUG] Active search index:", dataSources[0].parameters.index_name);
+    }
+    console.log("[DEBUG] System prompt preview:", config.systemPrompt?.substring(0, 100) + "...");
+    console.log("=====================================");
+
     // Add the user message to the chat history
     addMessage('user', userMessage);
 
-    // Check if this is a summary request - if so, don't use RAG
-    const summaryKeywords = [
-        'summary', 
-        'summarize', 
-        'what is this paper about', 
-        'what is this document about', 
-        'tell me about this document', 
-        'what does this document say',
-        'what is this about',
-        'about this paper',
-        'about this document',
-        'overview',
-        'what does this cover',
-        'gib mir summary', // Common German mistranscription
-        'give me summary',
-        'stucki mit', // Common mistranscription of "document"
-        'sumary', // Common misspelling
-        'summery', // Common misspelling
-        'zusammenfassung', // German word that might be picked up
+    // Check if this is an explicit summary request - only block RAG for very specific summary requests
+    const explicitSummaryKeywords = [
+        'give me a summary', 
+        'provide a summary',
+        'summarize this document',
+        'summarize this paper',
         'document summary',
-        'paper summary'
+        'paper summary',
+        'gib mir summary', // Common German mistranscription
+        'sumary', // Common misspelling when asking for summary
+        'summery' // Common misspelling when asking for summary
     ];
-    const isSummaryRequest = summaryKeywords.some(keyword => 
+    const isExplicitSummaryRequest = explicitSummaryKeywords.some(keyword => 
         userMessage.toLowerCase().includes(keyword.toLowerCase())
     );
 
@@ -1008,15 +1122,25 @@ async function sendMessageToGPT(userMessage) {
         presence_penalty: 0.0
     };
 
-    // Only add data sources for specific questions, not summaries
-    if (!isSummaryRequest) {
+    // Always add data sources unless it's an explicit summary request
+    if (!isExplicitSummaryRequest && dataSources.length > 0) {
         requestPayload.data_sources = dataSources;
+        console.log("[DEBUG] Added dataSources to requestPayload:", JSON.stringify(dataSources, null, 2));
+    } else {
+        console.log("[DEBUG] Explicit summary request or no data sources, not adding dataSources to requestPayload.");
     }
 
-    console.log(`Request type: ${isSummaryRequest ? 'Summary' : 'Specific'}, Using RAG: ${!isSummaryRequest}`);
+    console.log(`[DEBUG] Request type: ${isExplicitSummaryRequest ? 'Explicit Summary' : 'Regular/Specific'}, Using RAG: ${!isExplicitSummaryRequest && dataSources.length > 0}`);
+    console.log("[DEBUG] Full requestPayload:", JSON.stringify(requestPayload, null, 2));
 
     try {
         // Send the request to the GPT API
+        console.log("[DEBUG] Sending request to /api/gpt...");
+        console.log("[DEBUG] Request URL: /api/gpt");
+        console.log("[DEBUG] Request method: POST");
+        console.log("[DEBUG] Request headers:", { 'Content-Type': 'application/json' });
+        console.log("[DEBUG] Request body size:", JSON.stringify(requestPayload).length, "characters");
+        
         const response = await fetch('/api/gpt', {
             method: 'POST',
             headers: {
@@ -1025,11 +1149,43 @@ async function sendMessageToGPT(userMessage) {
             body: JSON.stringify(requestPayload),
         });
 
+        console.log("[DEBUG] Fetch completed");
+        console.log("[DEBUG] Response received");
+        console.log("[DEBUG] Response status:", response.status);
+        console.log("[DEBUG] Response ok:", response.ok);
+        console.log("[DEBUG] Response headers:", [...response.headers.entries()]);
+
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            const errorText = await response.text();
+            console.error("[DEBUG] Server error response (raw):", errorText);
+            
+            // Try to parse as JSON to get detailed error info
+            let errorDetails = errorText;
+            
+            try {
+                const errorJson = JSON.parse(errorText);
+                console.error("[DEBUG] Parsed error JSON:", errorJson);
+                
+                if (errorJson.message) {
+                    errorDetails = errorJson.message;
+                } else if (errorJson.details) {
+                    errorDetails = errorJson.details;
+                } else if (errorJson.error) {
+                    errorDetails = errorJson.error;
+                }
+                
+            } catch (parseError) {
+                console.error("[DEBUG] Failed to parse error JSON:", parseError);
+                console.error("[DEBUG] Using raw error text:", errorText);
+                // If not JSON, use the raw text
+                errorDetails = errorText;
+            }
+            
+            throw new Error(`HTTP error! status: ${response.status}, details: ${errorDetails}`);
         }
 
         const responseData = await response.json();
+        console.log("[DEBUG] Full server response:", JSON.stringify(responseData, null, 2));
         let gptMessage = responseData.choices[0].message.content.trim();
         
         // Clean up document citations before processing
@@ -1037,9 +1193,9 @@ async function sendMessageToGPT(userMessage) {
         
         console.log(`GPT: ${gptMessage}`);
 
-        // If this was a summary request and we still got a RAG error, provide immediate fallback
-        if (isSummaryRequest && gptMessage.includes("The requested information is not available in the retrieved data")) {
-            console.log("Summary request got RAG error, providing direct summary");
+        // If this was an explicit summary request and we still got a RAG error, provide immediate fallback
+        if (isExplicitSummaryRequest && gptMessage.includes("The requested information is not available in the retrieved data")) {
+            console.log("Explicit summary request got RAG error, providing direct summary");
             let directSummary = "";
             if (currentPrompt === 'four_gifts_prompt') {
                 directSummary = "The Four Gifts is a document that explores four key principles or concepts that are meant to guide personal development and understanding. It presents these gifts as foundational elements for growth and wisdom.";
@@ -1053,8 +1209,8 @@ async function sendMessageToGPT(userMessage) {
             }
         }
 
-        // Check for repeated error messages to prevent loops (only for non-summary requests)
-        if (!isSummaryRequest && gptMessage.includes("The requested information is not available in the retrieved data")) {
+        // Check for repeated error messages to prevent loops (only for non-explicit-summary requests)
+        if (!isExplicitSummaryRequest && gptMessage.includes("The requested information is not available in the retrieved data")) {
             const lastMessages = messages.slice(-3); // Check last 3 messages
             const recentErrorCount = lastMessages.filter(msg => 
                 msg.role === 'assistant' && 
@@ -1104,6 +1260,28 @@ async function speakWithAvatar(message) {
 
     isSpeaking = true;
     document.getElementById('stopSpeaking').disabled = false;
+    
+    // Temporarily pause speech recognition to prevent echo
+    const wasRecognizing = speechRecognizer && speechRecognizer.sessionId;
+    if (wasRecognizing) {
+        console.log("Temporarily pausing speech recognition during avatar speech");
+        try {
+            await new Promise((resolve, reject) => {
+                speechRecognizer.stopContinuousRecognitionAsync(
+                    () => {
+                        console.log("Speech recognition paused for avatar speech");
+                        resolve();
+                    },
+                    err => {
+                        console.error("Failed to pause speech recognition:", err);
+                        resolve(); // Continue anyway
+                    }
+                );
+            });
+        } catch (error) {
+            console.error("Error pausing speech recognition:", error);
+        }
+    }
 
     try {
         await avatarSynthesizer.speakTextAsync(message);
@@ -1112,6 +1290,25 @@ async function speakWithAvatar(message) {
     } finally {
         isSpeaking = false;
         document.getElementById('stopSpeaking').disabled = true;
+        
+        // Resume speech recognition after avatar finishes speaking
+        if (wasRecognizing) {
+            console.log("Resuming speech recognition after avatar speech");
+            setTimeout(() => {
+                try {
+                    speechRecognizer.startContinuousRecognitionAsync(
+                        () => {
+                            console.log("Speech recognition resumed after avatar speech");
+                        },
+                        err => {
+                            console.error("Failed to resume speech recognition:", err);
+                        }
+                    );
+                } catch (error) {
+                    console.error("Error resuming speech recognition:", error);
+                }
+            }, 500); // Small delay to ensure audio has finished
+        }
     }
 }
 
