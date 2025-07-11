@@ -751,6 +751,18 @@ function addMessage(role, content) {
 async function sendMessageToGPT(userMessage) {
     console.log('Sending message to GPT:', userMessage);
     
+    // Stop current speaking if avatar is talking
+    if (isSpeaking && avatarSynthesizer) {
+        console.log("Stopping current speech to answer new question...");
+        try {
+            await avatarSynthesizer.stopSpeakingAsync();
+            isSpeaking = false;
+            document.getElementById('stopSpeaking').disabled = true;
+        } catch (error) {
+            console.error("Error stopping current speech:", error);
+        }
+    }
+    
     // Add user message to chat
     addMessage('User', userMessage);
     
