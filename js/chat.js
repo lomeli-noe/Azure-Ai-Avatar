@@ -779,10 +779,7 @@ async function sendMessageToGPT(userMessage) {
             presence_penalty: 0
         };
         
-        // Add data sources for RAG if configured
-        if (dataSources && dataSources.length > 0) {
-            requestData.data_sources = dataSources;
-        }
+        // Do NOT add data sources for RAG; only use prompt and messages
         
         console.log('[DEBUG] Sending request to /api/gpt:');
         console.log('- Messages count:', requestData.messages.length);
