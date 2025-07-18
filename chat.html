@@ -155,7 +155,7 @@
   </style>
 </head>
 <body>
-  <h1 id="pageTitle">IQ Studios Avatar</h1>
+  <h1 id="pageTitle">Cognitive Science Conference</h1>
 
 
 
@@ -175,35 +175,20 @@
   </div>
 
   <!-- MAIN ROW: left = #chatContainer, right = #videoContainer -->
-  <div id="mainContainer" style="display: flex; gap: 20px; margin-top: 20px;">
-    <!-- The chat container on the left, hidden at first -->
-    <div id="chatContainer" style="flex: 1; display: flex; flex-direction: column; gap: 15px; background-color: transparent !important; height: auto !important; padding: 0 !important;" hidden>
-      <div id="chat-history" style="height: 450px; overflow-y: auto; border: 2px solid #e0e0e0; padding: 15px; border-radius: 8px; background-color: #fafafa !important; font-family: Arial, sans-serif; color: #333 !important;"></div>
-      
-      <!-- TYPE MESSAGE UI -->
-      <div id="messageEntryContainer">
-        <div id="showTypeMessageCheckbox" style="margin-bottom: 10px;">
-          <input type="checkbox" id="showTypeMessage" onchange="window.updateTypeMessageBox()" checked />
-          <label for="showTypeMessage">Enable Text Input</label>
-        </div>
-        <div style="display: flex; gap: 10px; align-items: flex-end;" id="messageInputContainer">
-          <div id="userMessageBox" style="flex: 1; min-height: 80px; border: 2px solid #4CAF50; border-radius: 5px; overflow-y: auto; padding: 12px; box-sizing: border-box; font-family: Arial, sans-serif; font-size: 14px; background-color: #f9f9f9; color: #333;" contentEditable="true" data-placeholder="Type your message here and press Enter or click Send..."></div>
-          <div style="display: flex; flex-direction: column; gap: 5px;">
-            <button id="sendMessage" onclick="window.sendTypedMessage()" style="padding: 12px 20px; background-color: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">Send</button>
-            <img id="uploadImgIcon" src="./image/attachment.jpg" alt="Attach" style="cursor: pointer; width: 24px; height: 24px;" />
-          </div>
-        </div>
-        <input type="file" id="imageUpload" accept="image/*" style="display: none;" />
-      </div>
-    </div>
 
-    <!-- The avatar/video container on the right, hidden at first -->
-    <div id="videoContainer" style="flex: 1; position: relative; height: 540px; background-color: #FFFFFF; border-radius: 5px; overflow: hidden;" hidden>
+  <div id="mainContainer" style="display: flex; flex-direction: column; gap: 20px; margin-top: 20px;">
+    <!-- The avatar/video container, with chat overlayed -->
+    <div id="videoContainer" style="width: 100%; position: relative; height: 540px; background-color: #FFFFFF; border-radius: 5px; overflow: hidden;" hidden>
       <!-- Remote avatar feed -->
       <div id="remoteVideo" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></div>
       <!-- Canvas elements for video processing, hidden by default -->
       <canvas id="canvas" width="1920" height="1080" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: transparent; z-index: 1;" hidden="hidden"></canvas>
       <canvas id="tmpCanvas" width="1920" height="1080" hidden="hidden"></canvas>
+
+      <!-- Overlay chat container in lower left -->
+      <div id="chatContainer" style="position: absolute; bottom: 30px; left: 30px; width: 600px; max-width: 95vw; display: flex; flex-direction: column; gap: 15px; background: rgba(30,30,30,0.55); box-shadow: 0 4px 24px rgba(0,0,0,0.25); border-radius: 12px; height: 320px; min-height: 0; padding: 0; z-index: 10;" hidden>
+        <div id="chat-history" style="height: 150px; overflow-y: auto; border: none; padding: 15px; border-radius: 8px; background: transparent; font-family: Arial, sans-serif; color: #fff !important;"></div>
+      </div>
     </div>
   </div>
 

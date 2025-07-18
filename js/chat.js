@@ -10,6 +10,13 @@ var sessionActive = false;
 var config = {};
 var previousAnimationFrameTimestamp = 0;
 var currentPrompt = 'superintelligence_prompt'; // Default prompt
+// Use sessionStorage to persist introduction state across reloads
+var hasIntroduced = false;
+try {
+    hasIntroduced = sessionStorage.getItem('hasIntroduced') === 'true';
+} catch (e) {
+    hasIntroduced = false;
+}
 
 // =================== UI CONTROL FUNCTIONS ===================
 
@@ -95,25 +102,28 @@ window.onload = async function() {
         // =================== ATTACH EVENT LISTENERS ===================
         // These are now inside window.onload to ensure the DOM is ready.
 
-        // Upload functionality
-        document.getElementById('uploadImgIcon').addEventListener('click', () => {
-            document.getElementById('imageUpload').click();
-        });
-
-        document.getElementById('imageUpload').addEventListener('change', (event) => {
-            const file = event.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    const imgElement = document.createElement('img');
-                    imgElement.src = e.target.result;
-                    imgElement.className = 'uploaded-image';
-                    document.getElementById('chat-history').appendChild(imgElement);
-                    // Optionally, you can send the image to the server or process it further
-                };
-                reader.readAsDataURL(file);
-            }
-        });
+        // Upload functionality (guarded for missing elements)
+        const uploadImgIcon = document.getElementById('uploadImgIcon');
+        const imageUpload = document.getElementById('imageUpload');
+        if (uploadImgIcon && imageUpload) {
+            uploadImgIcon.addEventListener('click', () => {
+                imageUpload.click();
+            });
+            imageUpload.addEventListener('change', (event) => {
+                const file = event.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const imgElement = document.createElement('img');
+                        imgElement.src = e.target.result;
+                        imgElement.className = 'uploaded-image';
+                        document.getElementById('chat-history').appendChild(imgElement);
+                        // Optionally, you can send the image to the server or process it further
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+        }
 
         // Shortcut keys
         document.addEventListener('keydown', (event) => {
@@ -710,24 +720,53 @@ function setDataSources(endpoint, key, indexName) {
 
 // =================== AUTO-START CONVERSATION ===================
 async function autoStartConversation() {
+    if (hasIntroduced) return;
+    hasIntroduced = true;
+    try { sessionStorage.setItem('hasIntroduced', 'true'); } catch (e) {}
     console.log('Auto-starting conversation with introduction...');
-    
     // Wait a moment to ensure everything is properly initialized
     setTimeout(async () => {
         try {
             const introductionMessage = "Hello! I'm an AI avatar trained to answer questions about the conference paper 'Four Gifts From the Founders of AI.' I'm here to help you explore this research. Feel free to ask me any question about the paper, or if you'd prefer, I can suggest some interesting questions to get us started. What would you like to know?";
-            
             // Add the introduction to the chat display
             addMessage('Assistant', introductionMessage);
-            
             // Speak the introduction with the avatar
             await speakWithAvatar(introductionMessage);
-            
             console.log('Auto-introduction completed successfully');
         } catch (error) {
             console.error('Error during auto-start conversation:', error);
         }
     }, 500); // Short delay to ensure avatar is fully ready
+}
+
+// =================== SMOOTH SCROLL FUNCTION ===================
+let scrollAnimationId = null;
+let scrollSpeed = 0.009; // pixels per ms (slower: 80px per second)
+let minDuration = 10000; // ms, minimum scroll duration (slower)
+function smoothScrollToBottom() {
+    const chatHistory = document.getElementById('chat-history');
+    if (!chatHistory) return;
+    if (scrollAnimationId) cancelAnimationFrame(scrollAnimationId);
+    let scrollStart = chatHistory.scrollTop;
+    let scrollEnd = chatHistory.scrollHeight;
+    let scrollStartTime = null;
+    function animateScrollStep(timestamp) {
+        if (!scrollStartTime) scrollStartTime = timestamp;
+        scrollEnd = chatHistory.scrollHeight;
+        let elapsed = timestamp - scrollStartTime;
+        let distance = scrollEnd - scrollStart;
+        let maxDuration = Math.max(Math.abs(distance) / scrollSpeed, minDuration);
+        let progress = Math.min(elapsed / maxDuration, 1);
+        let nextScroll = scrollStart + distance * progress;
+        chatHistory.scrollTop = nextScroll;
+        if (progress < 1) {
+            scrollAnimationId = requestAnimationFrame(animateScrollStep);
+        } else {
+            chatHistory.scrollTop = scrollEnd;
+        }
+    }
+    // Always animate, even if already at the bottom
+    scrollAnimationId = requestAnimationFrame(animateScrollStep);
 }
 
 // =================== MESSAGE DISPLAY FUNCTIONS ===================
@@ -737,14 +776,14 @@ function addMessage(role, content) {
         console.error('Chat history element not found');
         return;
     }
-    
+
     const messageDiv = document.createElement('div');
     messageDiv.className = role === 'User' ? 'user-message' : 'assistant-message';
     messageDiv.textContent = content;
     chatHistory.appendChild(messageDiv);
-    
-    // Scroll to bottom
-    chatHistory.scrollTop = chatHistory.scrollHeight;
+
+    // Smooth scroll to bottom as new messages are added
+    smoothScrollToBottom();
 }
 
 // =================== SEND MESSAGE TO GPT ===================
@@ -883,7 +922,10 @@ async function speakWithAvatar(message) {
 
     isSpeaking = true;
     document.getElementById('stopSpeaking').disabled = false;
-    
+
+    // Smooth scroll to bottom before speaking
+    smoothScrollToBottom();
+
     try {
         console.log('Avatar speaking:', message.substring(0, 50) + '...');
         await avatarSynthesizer.speakTextAsync(message);
@@ -893,5 +935,7 @@ async function speakWithAvatar(message) {
     } finally {
         isSpeaking = false;
         document.getElementById('stopSpeaking').disabled = true;
+        // Ensure we end at the bottom with smooth scroll
+        smoothScrollToBottom();
     }
 }
