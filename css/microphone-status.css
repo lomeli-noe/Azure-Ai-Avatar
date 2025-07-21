@@ -1,0 +1,19 @@
+/* Microphone status icon styles */
+.mic-enabled {
+  color: #4caf50; /* Green for enabled */
+  filter: none;
+  opacity: 1;
+}
+
+.mic-disabled {
+  color: #f44336; /* Red for disabled */
+  filter: grayscale(100%) brightness(0.7);
+  opacity: 0.6;
+}
+
+#microphoneStatusIcon {
+  font-size: 1.8em;
+  vertical-align: middle;
+  margin-left: 10px;
+  transition: color 0.2s, opacity 0.2s;
+}

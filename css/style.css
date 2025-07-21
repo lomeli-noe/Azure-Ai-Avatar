@@ -1,6 +1,8 @@
 /*
  * Minimal working styles for your avatar page
  */
+ @import url('microphone-status.css');
+
  .hidden {
     display: none;
   }

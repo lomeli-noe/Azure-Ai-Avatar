@@ -12,6 +12,7 @@ var previousAnimationFrameTimestamp = 0;
 var currentPrompt = 'superintelligence_prompt'; // Default prompt
 // Use sessionStorage to persist introduction state across reloads
 var hasIntroduced = false;
+var microphoneEnabled = false; // Track microphone state
 try {
     hasIntroduced = sessionStorage.getItem('hasIntroduced') === 'true';
 } catch (e) {
@@ -152,6 +153,17 @@ window.onload = async function() {
             if (event.target.id === 'userMessageBox' && event.key === 'Enter' && !event.shiftKey && !event.ctrlKey) {
                 event.preventDefault();
                 window.sendTypedMessage();
+            }
+        });
+
+        // Add space bar event handler to enable microphone if disabled
+        // This should be inside window.onload to ensure DOM is ready
+        window.addEventListener('keydown', (event) => {
+            if (event.code === 'Space' && !event.repeat) {
+                // Only enable microphone if currently disabled
+                if (!microphoneEnabled) {
+                    startMicrophone();
+                }
             }
         });
 
@@ -388,6 +400,24 @@ window.stopSpeaking = function() {
                 console.error("Failed to stop avatar speech: ", err);
             }
         );
+    }
+};
+
+// Ensure this global function disables the microphone and updates UI
+window.avatarSpeaking = function() {
+    // Stop the microphone so user cannot interrupt
+    stopMicrophone();
+    // Update the microphone status icon (if present)
+    const micStatusIcon = document.getElementById('microphoneStatusIcon');
+    if (micStatusIcon) {
+        micStatusIcon.classList.remove('mic-enabled');
+        micStatusIcon.classList.add('mic-disabled');
+        micStatusIcon.title = 'Microphone Disabled';
+    }
+    // Optionally update the microphone button text if present
+    const micButton = document.getElementById('microphone');
+    if (micButton) {
+        micButton.textContent = '🎤 Start Microphone';
     }
 };
 
@@ -871,7 +901,6 @@ function startMicrophone() {
         console.error("Speech recognizer is not initialized.");
         return;
     }
-
     console.log("Starting continuous speech recognition...");
     
     speechRecognizer.recognizing = (s, e) => {
@@ -899,10 +928,26 @@ function startMicrophone() {
     speechRecognizer.startContinuousRecognitionAsync(
         () => {
             console.log("Continuous speech recognition started successfully.");
+            microphoneEnabled = true;
+            // Set icon to enabled
+            const micStatusIcon = document.getElementById('microphoneStatusIcon');
+            if (micStatusIcon) {
+                micStatusIcon.classList.remove('mic-disabled');
+                micStatusIcon.classList.add('mic-enabled');
+                micStatusIcon.title = 'Microphone Enabled';
+            }
         },
         err => {
             console.error("Failed to start speech recognition: ", err);
             document.getElementById('microphone').textContent = '🎤 Start Microphone';
+            microphoneEnabled = false;
+            // Set icon to disabled
+            const micStatusIcon = document.getElementById('microphoneStatusIcon');
+            if (micStatusIcon) {
+                micStatusIcon.classList.remove('mic-enabled');
+                micStatusIcon.classList.add('mic-disabled');
+                micStatusIcon.title = 'Microphone Disabled';
+            }
         }
     );
 }
@@ -913,9 +958,25 @@ function stopMicrophone() {
         speechRecognizer.stopContinuousRecognitionAsync(
             () => {
                 console.log("Speech recognition stopped successfully.");
+                microphoneEnabled = false;
+                // Set icon to disabled
+                const micStatusIcon = document.getElementById('microphoneStatusIcon');
+                if (micStatusIcon) {
+                    micStatusIcon.classList.remove('mic-enabled');
+                    micStatusIcon.classList.add('mic-disabled');
+                    micStatusIcon.title = 'Microphone Disabled';
+                }
             },
             err => {
                 console.error("Failed to stop speech recognition: ", err);
+                microphoneEnabled = false;
+                // Set icon to disabled
+                const micStatusIcon = document.getElementById('microphoneStatusIcon');
+                if (micStatusIcon) {
+                    micStatusIcon.classList.remove('mic-enabled');
+                    micStatusIcon.classList.add('mic-disabled');
+                    micStatusIcon.title = 'Microphone Disabled';
+                }
             }
         );
     }
@@ -927,6 +988,9 @@ async function speakWithAvatar(message) {
         console.error("Avatar synthesizer is not initialized.");
         return;
     }
+
+    // Disable microphone and update icon when avatar starts speaking
+    if (window.avatarSpeaking) window.avatarSpeaking();
 
     isSpeaking = true;
     document.getElementById('stopSpeaking').disabled = false;
@@ -945,5 +1009,22 @@ async function speakWithAvatar(message) {
         document.getElementById('stopSpeaking').disabled = true;
         // Ensure we end at the bottom with smooth scroll
         smoothScrollToBottom();
+        // Add a short delay before re-enabling microphone so the disabled icon is visible
+        setTimeout(() => {
+            startMicrophone();
+        }, 500); // 500ms delay
     }
+}
+
+// =================== SPEECH SDK CONFIGURATION ===================
+function configureSpeechSDK() {
+    const region = config.azureSpeechRegion;
+    const key = config.azureSpeechKey;
+
+    // Common configuration for both Speech Synthesizer and Speech Recognizer
+    const speechConfig = SpeechSDK.SpeechConfig.fromSubscription(key, region);
+    // Set silence timeout to 2 seconds (2000 ms)
+    speechConfig.setProperty('SPEECH-EndpointSilenceTimeoutMs', '3000');
+
+    return speechConfig;
 }
