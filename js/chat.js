@@ -207,7 +207,7 @@ window.switchPrompt = async function() {
 // Called when "Open Avatar Session" is clicked
 window.startSession = function() {
     document.getElementById('openSessionButton').disabled = true;
-    document.getElementById('controlsToolbar').style.display = 'block';
+    // document.getElementById('controlsToolbar').style.display = 'block'; // Removed, not present in HTML
     connectAvatar();
 };
 
@@ -215,7 +215,7 @@ window.startSession = function() {
 window.stopSession = function() {
     disconnectAvatar();
     document.getElementById('openSessionButton').disabled = false;
-    document.getElementById('controlsToolbar').style.display = 'none';
+    // document.getElementById('controlsToolbar').style.display = 'none'; // Removed, not present in HTML
     document.getElementById('chatContainer').hidden = true;
     document.getElementById('videoContainer').hidden = true;
     document.getElementById('microphone').disabled = true;
@@ -223,6 +223,9 @@ window.stopSession = function() {
     document.getElementById('stopSession').disabled = true;
     document.getElementById('stopSpeaking').disabled = true;
     sessionActive = false;
+    // Reset greeting flag so avatar greets on next session start
+    hasIntroduced = false;
+    try { sessionStorage.removeItem('hasIntroduced'); } catch (e) {}
 };
 
 // Called when "Clear Chat History" is clicked
@@ -509,6 +512,7 @@ async function connectAvatar() {
 
     const avatarConfig = new SpeechSDK.AvatarConfig(config.avatarCharacter, config.avatarStyle);
     avatarConfig.backgroundColor = config.avatarBackgroundColor;
+    console.log('Avatar background color:', config.avatarBackgroundColor);
 
     avatarSynthesizer = new SpeechSDK.AvatarSynthesizer(speechSynthesisConfig, avatarConfig);
 
@@ -610,10 +614,14 @@ function setupWebRTC(iceServerUrl, iceServerUsername, iceServerCredential) {
             videoElement.playsInline = true;
             videoElement.onplaying = () => {
                 console.log('WebRTC video playback started.');
-                document.getElementById('videoContainer').hidden = false;
-                document.getElementById('chatContainer').hidden = false;
-                document.getElementById('microphone').disabled = false;
-                document.getElementById('stopSession').disabled = false;
+                var videoContainer = document.getElementById('videoContainer');
+                var chatContainer = document.getElementById('chatContainer');
+                if (videoContainer) videoContainer.hidden = false;
+                if (chatContainer) chatContainer.hidden = false;
+                var microphoneBtn = document.getElementById('microphone');
+                var stopSessionBtn = document.getElementById('stopSession');
+                if (microphoneBtn) microphoneBtn.disabled = false;
+                if (stopSessionBtn) stopSessionBtn.disabled = false;
 
                 const remoteDiv = document.getElementById('remoteVideo');
                 remoteDiv.innerHTML = ''; // Clear previous video elements

@@ -73,15 +73,36 @@
     
     /* Ensure chat container doesn't inherit unwanted styles */
     #chatContainer {
-      background-color: transparent !important;
-      height: auto !important;
-      padding: 0 !important;
+      position: absolute;
+      bottom: 30px;
+      left: 30px;
+      width: 600px;
+      max-width: 95vw;
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      background: rgba(30,30,30,0.45) !important;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.25);
+      border-radius: 16px;
+      border: 1.5px solid rgba(255,255,255,0.18);
+      backdrop-filter: blur(16px) saturate(180%);
+      -webkit-backdrop-filter: blur(16px) saturate(180%);
+      transition: background 0.3s, box-shadow 0.3s;
+      height: 320px;
+      min-height: 0;
+      padding: 0;
+      z-index: 10;
     }
     
     #chat-history {
-      background-color: #fafafa !important;
-      color: #333 !important;
-      border: 2px solid #e0e0e0 !important;
+      height: 150px;
+      overflow-y: auto;
+      border: none;
+      padding: 15px;
+      border-radius: 8px;
+      background: transparent;
+      font-family: Arial, sans-serif;
+      color: #fff !important;
     }
     
     /* Enhanced toolbar styling */
@@ -152,33 +173,135 @@
     .close:focus {
       color: #333;
     }
+    /* Sidebar styles */
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+    }
+    #mainContainer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      min-height: 100vh;
+      min-width: 100vw;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      margin: 0;
+      box-sizing: border-box;
+    }
+    #sidebarMenu {
+      position: fixed;
+      top: 40px;
+      left: 0;
+      width: 80px;
+      min-width: 60px;
+      max-width: 220px;
+      background: rgba(40,40,40,0.95);
+      border-radius: 12px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.18);
+      z-index: 1001;
+      transition: width 0.3s cubic-bezier(0.4,0,0.2,1);
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      padding: 0 6px 12px 6px;
+    }
+    #sidebarMenu.sidebar-collapsed {
+      width: 60px;
+      min-width: 60px;
+      max-width: 60px;
+    }
+    #sidebarButtons {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      transition: opacity 0.2s;
+    }
+    #sidebarMenu.sidebar-collapsed #sidebarButtons {
+      opacity: 0;
+      pointer-events: none;
+      height: 0;
+      overflow: hidden;
+    }
+    #sidebarMenu.sidebar-expanded #sidebarButtons {
+      opacity: 1;
+      pointer-events: auto;
+      height: auto;
+    }
+    #sidebarToggle {
+      width: 100%;
+      background: #333;
+      color: #fff;
+      border: none;
+      border-radius: 10px 10px 0 0;
+      font-size: 22px;
+      font-weight: bold;
+      cursor: pointer;
+      padding: 12px 0;
+      margin-bottom: 8px;
+      transition: background 0.2s;
+    }
+    #sidebarToggle:hover {
+      background: #444;
+    }
+    #sidebarButtons button {
+      margin-bottom: 10px;
+      padding: 14px 0;
+      font-size: 16px;
+      font-weight: 500;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      transition: background 0.2s, box-shadow 0.2s;
+    }
+    #openSessionButton {
+      background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+      color: white;
+      font-weight: bold;
+    }
+    #microphone {
+      background-color: #2196F3;
+      color: white;
+    }
+    #stopSpeaking {
+      background-color: #f44336;
+      color: white;
+    }
+    #clearChatHistory {
+      background-color: #FF9800;
+      color: white;
+    }
+    #editPrompt {
+      background-color: #607D8B;
+      color: white;
+    }
+    #stopSession {
+      background-color: #795548;
+      color: white;
+    }
+    #chatContainer {
+      background: rgba(30,30,30,0.45) !important;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.25);
+      border-radius: 16px;
+      border: 1.5px solid rgba(255,255,255,0.18);
+      backdrop-filter: blur(16px) saturate(180%);
+      -webkit-backdrop-filter: blur(16px) saturate(180%);
+      transition: background 0.3s, box-shadow 0.3s;
+    }
   </style>
+    
 </head>
 <body>
-  <h1 id="pageTitle">Cognitive Science Conference</h1>
-
-
-
-
-  <!-- SINGLE BUTTON to open the avatar session -->
-  <button id="openSessionButton" onclick="window.startSession()" disabled style="padding: 18px 36px; background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%); color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);">🚀 Open Avatar Session</button>
-
-  <!-- CONTROL BUTTONS TOOLBAR -->
-  <div id="controlsToolbar" style="display: none; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 15px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
-    <div style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; align-items: center;">
-      <button id="microphone" onclick="window.microphone()" disabled style="padding: 12px 20px; background-color: #2196F3; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; box-shadow: 0 2px 8px rgba(33, 150, 243, 0.3); transition: all 0.2s ease; min-width: 160px; text-align: center;">🎤 Start Microphone</button>
-      <button id="stopSpeaking" onclick="window.stopSpeaking()" disabled style="padding: 12px 20px; background-color: #f44336; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; box-shadow: 0 2px 8px rgba(244, 67, 54, 0.3); transition: all 0.2s ease; min-width: 140px; text-align: center;">🛑 Stop Speaking</button>
-      <button id="clearChatHistory" onclick="window.clearChatHistory()" style="padding: 12px 20px; background-color: #FF9800; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; box-shadow: 0 2px 8px rgba(255, 152, 0, 0.3); transition: all 0.2s ease; min-width: 120px; text-align: center;">🗑️ Clear Chat</button>
-      <button id="editPrompt" onclick="window.openPromptModal()" style="padding: 12px 20px; background-color: #607D8B; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; box-shadow: 0 2px 8px rgba(96, 125, 139, 0.3); transition: all 0.2s ease; min-width: 130px; text-align: center;">✏️ Edit Prompt</button>
-      <button id="stopSession" onclick="window.stopSession()" disabled style="padding: 12px 20px; background-color: #795548; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; box-shadow: 0 2px 8px rgba(121, 85, 72, 0.3); transition: all 0.2s ease; min-width: 140px; text-align: center;">❌ Close Session</button>
-    </div>
-  </div>
-
   <!-- MAIN ROW: left = #chatContainer, right = #videoContainer -->
 
-  <div id="mainContainer" style="display: flex; flex-direction: column; gap: 20px; margin-top: 20px;">
+  <div id="mainContainer">
     <!-- The avatar/video container, with chat overlayed -->
-    <div id="videoContainer" style="width: 100%; position: relative; height: 540px; background-color: #FFFFFF; border-radius: 5px; overflow: hidden;" hidden>
+    <div id="videoContainer" style="position: relative; width: 100vw; height: 100vh; background-color: #FFFFFF; border-radius: 5px; overflow: hidden;">
       <!-- Remote avatar feed -->
       <div id="remoteVideo" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></div>
       <!-- Canvas elements for video processing, hidden by default -->
@@ -186,11 +309,40 @@
       <canvas id="tmpCanvas" width="1920" height="1080" hidden="hidden"></canvas>
 
       <!-- Overlay chat container in lower left -->
-      <div id="chatContainer" style="position: absolute; bottom: 30px; left: 30px; width: 600px; max-width: 95vw; display: flex; flex-direction: column; gap: 15px; background: rgba(30,30,30,0.55); box-shadow: 0 4px 24px rgba(0,0,0,0.25); border-radius: 12px; height: 320px; min-height: 0; padding: 0; z-index: 10;" hidden>
-        <div id="chat-history" style="height: 150px; overflow-y: auto; border: none; padding: 15px; border-radius: 8px; background: transparent; font-family: Arial, sans-serif; color: #fff !important;"></div>
+      <div id="chatContainer">
+        <div id="chat-history"></div>
       </div>
     </div>
   </div>
+
+  <!-- VERTICAL COLLAPSIBLE SIDEBAR MENU -->
+  <div id="sidebarMenu" class="sidebar-expanded">
+    <button id="sidebarToggle" title="Toggle Menu">☰</button>
+    <div id="sidebarButtons">
+      <button id="openSessionButton" onclick="window.startSession()" disabled>🚀 Open Avatar Session</button>
+      <button id="microphone" onclick="window.microphone()" disabled>🎤 Start Microphone</button>
+      <button id="stopSpeaking" onclick="window.stopSpeaking()" disabled>🛑 Stop Speaking</button>
+      <button id="clearChatHistory" onclick="window.clearChatHistory()">🗑️ Clear Chat</button>
+      <button id="editPrompt" onclick="window.openPromptModal()">✏️ Edit Prompt</button>
+      <button id="stopSession" onclick="window.stopSession()" disabled>❌ Close Session</button>
+    </div>
+  </div>
+  <script>
+    // Sidebar collapse/expand logic
+    document.addEventListener('DOMContentLoaded', function() {
+      var sidebarMenu = document.getElementById('sidebarMenu');
+      var sidebarToggle = document.getElementById('sidebarToggle');
+      sidebarToggle.addEventListener('click', function() {
+        if (sidebarMenu.classList.contains('sidebar-expanded')) {
+          sidebarMenu.classList.remove('sidebar-expanded');
+          sidebarMenu.classList.add('sidebar-collapsed');
+        } else {
+          sidebarMenu.classList.remove('sidebar-collapsed');
+          sidebarMenu.classList.add('sidebar-expanded');
+        }
+      });
+    });
+  </script>
 
   <!-- Prompt Editor Modal -->
   <div id="promptModal" class="modal">
