@@ -794,7 +794,7 @@ async function autoStartConversation() {
 
 // =================== SMOOTH SCROLL FUNCTION ===================
 let scrollAnimationId = null;
-let scrollSpeed = 0.009; // pixels per ms (slower: 80px per second)
+let scrollSpeed = 0.09; // pixels per ms (slower: 80px per second)
 let minDuration = 10000; // ms, minimum scroll duration (slower)
 function smoothScrollToBottom() {
     const chatHistory = document.getElementById('chat-history');
@@ -917,8 +917,19 @@ function startMicrophone() {
         console.error("Speech recognizer is not initialized.");
         return;
     }
+    // If avatar is currently speaking, stop it before enabling microphone
+    if (isSpeaking && avatarSynthesizer && typeof avatarSynthesizer.stopSpeakingAsync === 'function') {
+        try {
+            avatarSynthesizer.stopSpeakingAsync();
+            isSpeaking = false;
+            const stopSpeakingBtn = document.getElementById('stopSpeaking');
+            if (stopSpeakingBtn) stopSpeakingBtn.disabled = true;
+        } catch (err) {
+            console.error("Error stopping avatar speech when enabling microphone:", err);
+        }
+    }
     console.log("Starting continuous speech recognition...");
-    
+
     speechRecognizer.recognizing = (s, e) => {
         console.log("Recognizing: " + e.result.text);
     };
@@ -945,25 +956,13 @@ function startMicrophone() {
         () => {
             console.log("Continuous speech recognition started successfully.");
             microphoneEnabled = true;
-            // Set icon to enabled
-            const micStatusIcon = document.getElementById('microphoneStatusIcon');
-            if (micStatusIcon) {
-                micStatusIcon.classList.remove('mic-disabled');
-                micStatusIcon.classList.add('mic-enabled');
-                micStatusIcon.title = 'Microphone Enabled';
-            }
+            if (window.setMicStatus) window.setMicStatus(true);
         },
         err => {
             console.error("Failed to start speech recognition: ", err);
             document.getElementById('microphone').textContent = '🎤 Start Microphone';
             microphoneEnabled = false;
-            // Set icon to disabled
-            const micStatusIcon = document.getElementById('microphoneStatusIcon');
-            if (micStatusIcon) {
-                micStatusIcon.classList.remove('mic-enabled');
-                micStatusIcon.classList.add('mic-disabled');
-                micStatusIcon.title = 'Microphone Disabled';
-            }
+            if (window.setMicStatus) window.setMicStatus(false);
         }
     );
 }
@@ -975,24 +974,12 @@ function stopMicrophone() {
             () => {
                 console.log("Speech recognition stopped successfully.");
                 microphoneEnabled = false;
-                // Set icon to disabled
-                const micStatusIcon = document.getElementById('microphoneStatusIcon');
-                if (micStatusIcon) {
-                    micStatusIcon.classList.remove('mic-enabled');
-                    micStatusIcon.classList.add('mic-disabled');
-                    micStatusIcon.title = 'Microphone Disabled';
-                }
+                if (window.setMicStatus) window.setMicStatus(false);
             },
             err => {
                 console.error("Failed to stop speech recognition: ", err);
                 microphoneEnabled = false;
-                // Set icon to disabled
-                const micStatusIcon = document.getElementById('microphoneStatusIcon');
-                if (micStatusIcon) {
-                    micStatusIcon.classList.remove('mic-enabled');
-                    micStatusIcon.classList.add('mic-disabled');
-                    micStatusIcon.title = 'Microphone Disabled';
-                }
+                if (window.setMicStatus) window.setMicStatus(false);
             }
         );
     }
@@ -1015,6 +1002,11 @@ async function speakWithAvatar(message) {
 
     // Disable microphone and update icon when avatar starts speaking
     if (window.avatarSpeaking) window.avatarSpeaking();
+
+    // Stop microphone if it is currently enabled
+    if (microphoneEnabled) {
+        stopMicrophone();
+    }
 
     isSpeaking = true;
     const stopSpeakingBtn = document.getElementById('stopSpeaking');
