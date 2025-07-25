@@ -88,7 +88,6 @@
       backdrop-filter: blur(16px) saturate(180%);
       -webkit-backdrop-filter: blur(16px) saturate(180%);
       transition: background 0.3s, box-shadow 0.3s;
-      height: 320px;
       min-height: 0;
       padding: 0;
       z-index: 10;
@@ -268,10 +267,6 @@
       background-color: #2196F3;
       color: white;
     }
-    #stopSpeaking {
-      background-color: #f44336;
-      color: white;
-    }
     #clearChatHistory {
       background-color: #FF9800;
       color: white;
@@ -284,68 +279,89 @@
       background-color: #795548;
       color: white;
     }
-    #chatContainer {
-      background: rgba(30,30,30,0.45) !important;
-      box-shadow: 0 4px 24px rgba(0,0,0,0.25);
-      border-radius: 16px;
-      border: 1.5px solid rgba(255,255,255,0.18);
-      backdrop-filter: blur(16px) saturate(180%);
-      -webkit-backdrop-filter: blur(16px) saturate(180%);
-      transition: background 0.3s, box-shadow 0.3s;
-    }
   </style>
     
 </head>
 <body>
-  <!-- MAIN ROW: left = #chatContainer, right = #videoContainer -->
 
-  <div id="mainContainer">
-    <!-- The avatar/video container, with chat overlayed -->
-    <div id="videoContainer" style="position: relative; width: 100vw; height: 100vh; background-color: #FFFFFF; border-radius: 5px; overflow: hidden;">
-      <!-- Remote avatar feed -->
-      <div id="remoteVideo" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></div>
-      <!-- Canvas elements for video processing, hidden by default -->
-      <canvas id="canvas" width="1920" height="1080" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: transparent; z-index: 1;" hidden="hidden"></canvas>
-      <canvas id="tmpCanvas" width="1920" height="1080" hidden="hidden"></canvas>
+  <div id="mainFlexRow" style="display: flex; flex-direction: row; width: 100vw; height: 100vh; min-height: 100vh; min-width: 100vw;">
+    <!-- Sidebar Menu (now in flow, not fixed) -->
+    <div id="sidebarMenu" class="sidebar-collapsed" style="height: 100vh; transition: width 0.3s cubic-bezier(0.4,0,0.2,1); position: relative;">
+      <div id="sidebarButtons">
+        <button id="openSessionButton" onclick="window.startSession()" disabled>🚀 Open Avatar Session</button>
+        <!-- Microphone button hidden for now -->
+        <button id="microphone" onclick="window.microphone()" disabled style="display:none;">🎤 Start Microphone</button>
+        <button id="clearChatHistory" onclick="window.clearChatHistory()">🗑️ Clear Chat</button>
+        <button id="editPrompt" onclick="window.openPromptModal()">✏️ Edit Prompt</button>
+        <button id="stopSession" onclick="window.stopSession()" disabled>❌ Close Session</button>
+      </div>
+    </div>
+    <!-- Sidebar Toggle Button, always visible -->
+    <button id="sidebarToggle" title="Toggle Menu" style="position: absolute; left: 80px; top: 50%; transform: translateY(-50%); width: 32px; height: 48px; background: #333; color: #fff; border: none; border-radius: 0 8px 8px 0; font-size: 28px; font-weight: bold; cursor: pointer; z-index: 1002; display: flex; align-items: center; justify-content: center; transition: left 0.3s, background 0.2s;">&lt;</button>
+    <!-- Main Content -->
+    <div id="mainContainer" style="flex: 1 1 auto; position: relative; width: 0; min-width: 0; height: 100vh;">
+      <!-- The avatar/video container, with chat overlayed -->
+      <div id="videoContainer" style="position: relative; width: 100%; height: 100vh; background-color: #FFFFFF; border-radius: 5px; overflow: hidden;">
+        <!-- Remote avatar feed -->
+        <div id="remoteVideo" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></div>
+        <!-- Canvas elements for video processing, hidden by default -->
+        <canvas id="canvas" width="1920" height="1080" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: transparent; z-index: 1;" hidden="hidden"></canvas>
+        <canvas id="tmpCanvas" width="1920" height="1080" hidden="hidden"></canvas>
 
-      <!-- Overlay chat container in lower left -->
-      <div id="chatContainer">
-        <div id="chat-history"></div>
-        <!-- Microphone status icon (moved to right) -->
-        <div id="micStatusIcon" style="position: absolute; right: -50px; bottom: 20px; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; z-index: 20;">
-          <span id="micIcon" style="font-size: 32px; color: #888;" title="Microphone Disabled">🔴🔇</span>
+        <!-- Logo above chat container -->
+        <div id="logoAndChatWrapper" style="position: absolute; left: 30px; top: 0; bottom: 0; margin: auto; width: 600px; max-width: 95vw; height: 100%; display: flex; flex-direction: column; justify-content: center; z-index: 10;">
+          <div id="logoContainer" style="height: 20%; display: flex; align-items: center; justify-content: center;">
+            <img src="image/logo.png" alt="Logo" style="max-height: 100%; max-width: 80%; object-fit: contain; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.12); background: rgba(255,255,255,0.15); padding: 8px;" />
+          </div>
+          <div id="chatContainer" style="height: 80%; flex: 1 1 auto; display: flex; flex-direction: column; position: relative;">
+            <div id="chat-history"></div>
+            <div id="micStatusIcon" style="position: absolute; right: -50px; bottom: 20px; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; z-index: 20;">
+              <span id="micIcon" style="font-size: 32px; color: #888;" title="Microphone Disabled">🔴🔇</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- VERTICAL COLLAPSIBLE SIDEBAR MENU -->
-  <div id="sidebarMenu" class="sidebar-expanded">
-    <button id="sidebarToggle" title="Toggle Menu">☰</button>
-    <div id="sidebarButtons">
-      <button id="openSessionButton" onclick="window.startSession()" disabled>🚀 Open Avatar Session</button>
-      <!-- Microphone button hidden for now -->
-      <button id="microphone" onclick="window.microphone()" disabled style="display:none;">🎤 Start Microphone</button>
-      <button id="stopSpeaking" onclick="window.stopSpeaking()" disabled>🛑 Stop Speaking</button>
-      <button id="clearChatHistory" onclick="window.clearChatHistory()">🗑️ Clear Chat</button>
-      <button id="editPrompt" onclick="window.openPromptModal()">✏️ Edit Prompt</button>
-      <button id="stopSession" onclick="window.stopSession()" disabled>❌ Close Session</button>
-    </div>
-  </div>
   <script>
-    // Sidebar collapse/expand logic
+    // Sidebar collapse/expand logic (now pushes content right)
     document.addEventListener('DOMContentLoaded', function() {
       var sidebarMenu = document.getElementById('sidebarMenu');
       var sidebarToggle = document.getElementById('sidebarToggle');
+      var mainContainer = document.getElementById('mainContainer');
+      var expandedWidth = 100;
       sidebarToggle.addEventListener('click', function() {
         if (sidebarMenu.classList.contains('sidebar-expanded')) {
           sidebarMenu.classList.remove('sidebar-expanded');
           sidebarMenu.classList.add('sidebar-collapsed');
+          sidebarMenu.style.width = '0px';
+          sidebarMenu.style.minWidth = '0px';
+          sidebarMenu.style.maxWidth = '0px';
+          sidebarMenu.style.overflow = 'hidden';
+          mainContainer.style.marginLeft = '0px';
+          sidebarToggle.innerHTML = '&gt;';
+          sidebarToggle.style.left = '12px';
         } else {
           sidebarMenu.classList.remove('sidebar-collapsed');
           sidebarMenu.classList.add('sidebar-expanded');
+          sidebarMenu.style.width = expandedWidth + 'px';
+          sidebarMenu.style.minWidth = '60px';
+          sidebarMenu.style.maxWidth = '220px';
+          sidebarMenu.style.overflow = '';
+          mainContainer.style.marginLeft = expandedWidth + 'px';
+          sidebarToggle.innerHTML = '&lt;';
+          sidebarToggle.style.left = expandedWidth + 'px';
         }
       });
+      // Set initial state
+      sidebarMenu.style.width = '0px';
+      sidebarMenu.style.minWidth = '0px';
+      sidebarMenu.style.maxWidth = '0px';
+      sidebarMenu.style.overflow = 'hidden';
+      mainContainer.style.marginLeft = '0px';
+      sidebarToggle.innerHTML = '&gt;';
+      sidebarToggle.style.left = '12px';
     });
 
     // Microphone status icon logic

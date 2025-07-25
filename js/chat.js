@@ -218,6 +218,9 @@ window.switchPrompt = async function() {
 
 // Called when "Open Avatar Session" is clicked
 window.startSession = function() {
+    // Always reset introduction flag so intro is spoken on every session start
+    hasIntroduced = false;
+    try { sessionStorage.removeItem('hasIntroduced'); } catch (e) {}
     document.getElementById('openSessionButton').disabled = true;
     // document.getElementById('controlsToolbar').style.display = 'block'; // Removed, not present in HTML
     connectAvatar();
@@ -233,7 +236,8 @@ window.stopSession = function() {
     document.getElementById('microphone').disabled = true;
     document.getElementById('microphone').textContent = '🎤 Start Microphone'; // Reset button text
     document.getElementById('stopSession').disabled = true;
-    document.getElementById('stopSpeaking').disabled = true;
+    const stopSpeakingBtn = document.getElementById('stopSpeaking');
+    if (stopSpeakingBtn) stopSpeakingBtn.disabled = true;
     sessionActive = false;
     // Reset greeting flag so avatar greets on next session start
     hasIntroduced = false;
@@ -461,76 +465,81 @@ async function connectAvatar() {
 
     // If a custom avatar image is used, we don't need the full avatar synthesizer
     if (config.userAvatarImagePath && config.userAvatarImagePath.trim() !== '' && config.userAvatarImagePath !== 'image/my_avatar.png') {
-        console.log("Custom avatar image detected, initializing speech synthesis only.");
-        const cogSvcRegion = config.azureSpeechRegion;
-        const cogSvcSubKey = config.azureSpeechKey;
-        let speechSynthesisConfig = SpeechSDK.SpeechConfig.fromSubscription(cogSvcSubKey, cogSvcRegion);
-        speechSynthesisConfig.speechSynthesisVoiceName = config.ttsVoice;
-        
-        // Use a standard speech synthesizer as we don't need video
-        avatarSynthesizer = new SpeechSDK.SpeechSynthesizer(speechSynthesisConfig);
-
-        // Setup STT recognizer with English-only configuration
-        const speechRecognitionConfig = SpeechSDK.SpeechConfig.fromSubscription(cogSvcSubKey, cogSvcRegion);
-        speechRecognitionConfig.speechRecognitionLanguage = "en-US"; // Force English only
-        // Removed problematic properties to fix websocket error 1007
-        
-        speechRecognizer = new SpeechSDK.SpeechRecognizer(
-            speechRecognitionConfig,
-            SpeechSDK.AudioConfig.fromDefaultMicrophoneInput()
-        );
-
-        // Set data sources based on current prompt setting
-        let indexName = null;
-        const knowledgeBaseSelector = document.getElementById('knowledgeBase');
-        if (knowledgeBaseSelector) {
-            indexName = knowledgeBaseSelector.value;
-        } else if (config.cognitiveSearchIndices && Object.values(config.cognitiveSearchIndices).length > 0) {
-            // Auto-select the appropriate index based on current prompt
-            if (currentPrompt === 'four_gifts_prompt') {
-                // Look for Four Gifts index
-                for (const friendlyName in config.cognitiveSearchIndices) {
-                    if (friendlyName.toLowerCase().includes('four gifts')) {
-                        indexName = config.cognitiveSearchIndices[friendlyName];
-                        console.log(`Auto-selected Four Gifts index: ${indexName}`);
-                        break;
-                    }
-                }
-            } else if (currentPrompt === 'superintelligence_prompt') {
-                // Look for SuperIntelligence index
-                for (const friendlyName in config.cognitiveSearchIndices) {
-                    if (friendlyName.toLowerCase().includes('super intelligence') || friendlyName.toLowerCase().includes('ai super intelligence')) {
-                        indexName = config.cognitiveSearchIndices[friendlyName];
-                        console.log(`Auto-selected SuperIntelligence index: ${indexName}`);
-                        break;
-                    }
-                }
-            }
+        try {
+            console.log("Custom avatar image detected, initializing speech synthesis only.");
+            const cogSvcRegion = config.azureSpeechRegion;
+            const cogSvcSubKey = config.azureSpeechKey;
+            let speechSynthesisConfig = SpeechSDK.SpeechConfig.fromSubscription(cogSvcSubKey, cogSvcRegion);
+            speechSynthesisConfig.speechSynthesisVoiceName = config.ttsVoice;
             
-            // Fallback to first available index if no match found
-            if (!indexName) {
-                indexName = Object.values(config.cognitiveSearchIndices)[0];
-                console.log(`No matching index found for prompt ${currentPrompt}, using fallback: ${indexName}`);
-            }
-        }
-        setDataSources(config.azureCogSearchEndpoint, config.azureCogSearchKey, indexName);
-        messages = [];
-        if (config.systemPrompt) {
-            messages.push({ role: 'system', content: config.systemPrompt });
-        }
+            // Use a standard speech synthesizer as we don't need video
+            avatarSynthesizer = new SpeechSDK.SpeechSynthesizer(speechSynthesisConfig);
 
-        // Enable controls as the session is now "active" for speech
-        document.getElementById('chatContainer').hidden = false;
-        document.getElementById('microphone').disabled = false;
-        document.getElementById('stopSession').disabled = false;
-        sessionActive = true;
-        
-        // Auto-start microphone
-        startMicrophone();
-        document.getElementById('microphone').textContent = '🛑 Stop Microphone';
-        
-        // Auto-start the conversation with the introduction
-        autoStartConversation();
+            // Setup STT recognizer with English-only configuration
+            const speechRecognitionConfig = SpeechSDK.SpeechConfig.fromSubscription(cogSvcSubKey, cogSvcRegion);
+            speechRecognitionConfig.speechRecognitionLanguage = "en-US"; // Force English only
+            // Removed problematic properties to fix websocket error 1007
+            
+            speechRecognizer = new SpeechSDK.SpeechRecognizer(
+                speechRecognitionConfig,
+                SpeechSDK.AudioConfig.fromDefaultMicrophoneInput()
+            );
+
+            // Set data sources based on current prompt setting
+            let indexName = null;
+            const knowledgeBaseSelector = document.getElementById('knowledgeBase');
+            if (knowledgeBaseSelector) {
+                indexName = knowledgeBaseSelector.value;
+            } else if (config.cognitiveSearchIndices && Object.values(config.cognitiveSearchIndices).length > 0) {
+                // Auto-select the appropriate index based on current prompt
+                if (currentPrompt === 'four_gifts_prompt') {
+                    // Look for Four Gifts index
+                    for (const friendlyName in config.cognitiveSearchIndices) {
+                        if (friendlyName.toLowerCase().includes('four gifts')) {
+                            indexName = config.cognitiveSearchIndices[friendlyName];
+                            console.log(`Auto-selected Four Gifts index: ${indexName}`);
+                            break;
+                        }
+                    }
+                } else if (currentPrompt === 'superintelligence_prompt') {
+                    // Look for SuperIntelligence index
+                    for (const friendlyName in config.cognitiveSearchIndices) {
+                        if (friendlyName.toLowerCase().includes('super intelligence') || friendlyName.toLowerCase().includes('ai super intelligence')) {
+                            indexName = config.cognitiveSearchIndices[friendlyName];
+                            console.log(`Auto-selected SuperIntelligence index: ${indexName}`);
+                            break;
+                        }
+                    }
+                }
+                // Fallback to first available index if no match found
+                if (!indexName) {
+                    indexName = Object.values(config.cognitiveSearchIndices)[0];
+                    console.log(`No matching index found for prompt ${currentPrompt}, using fallback: ${indexName}`);
+                }
+            }
+            setDataSources(config.azureCogSearchEndpoint, config.azureCogSearchKey, indexName);
+            messages = [];
+            if (config.systemPrompt) {
+                messages.push({ role: 'system', content: config.systemPrompt });
+            }
+
+            // Enable controls as the session is now "active" for speech
+            document.getElementById('chatContainer').hidden = false;
+            document.getElementById('microphone').disabled = false;
+            document.getElementById('stopSession').disabled = false;
+            sessionActive = true;
+            
+            // Auto-start microphone
+            startMicrophone();
+            document.getElementById('microphone').textContent = '🛑 Stop Microphone';
+            
+            // Auto-start the conversation with the introduction
+            await autoStartConversation();
+        } catch (err) {
+            console.error('Error during custom avatar connectAvatar:', err);
+            alert('Failed to initialize avatar session. See console for details.');
+            window.stopSession && window.stopSession();
+        }
         return; // Skip the rest of the function for WebRTC setup
     }
 
@@ -762,19 +771,25 @@ async function autoStartConversation() {
     hasIntroduced = true;
     try { sessionStorage.setItem('hasIntroduced', 'true'); } catch (e) {}
     console.log('Auto-starting conversation with introduction...');
-    // Wait a moment to ensure everything is properly initialized
     setTimeout(async () => {
         try {
-            const introductionMessage = "Hello! I'm an AI avatar trained to answer questions about the conference paper 'Four Gifts From the Founders of AI.' I'm here to help you explore this research. Feel free to ask me any question about the paper, or if you'd prefer, I can suggest some interesting questions to get us started. What would you like to know?";
-            // Add the introduction to the chat display
+            console.log('[autoStartConversation] avatarSynthesizer:', avatarSynthesizer);
+            // Use a dedicated, user-friendly introduction message
+            let introductionMessage = "Hello! I'm an AI avatar trained to answer questions about the conference paper 'Four Gifts From the Founders of AI.' I'm here to help you explore this research. Feel free to ask me any question about the paper, or if you'd prefer, I can suggest some interesting questions to get us started. What would you like to know?";
+            // Add the introduction message to the chat as an assistant message
             addMessage('Assistant', introductionMessage);
-            // Speak the introduction with the avatar
+            // Speak the introduction
             await speakWithAvatar(introductionMessage);
             console.log('Auto-introduction completed successfully');
         } catch (error) {
-            console.error('Error during auto-start conversation:', error);
+            console.error('[autoStartConversation] Error during avatar introduction:', error);
+            if (!avatarSynthesizer) {
+                alert('Avatar synthesizer is not initialized. See console for details.');
+            } else {
+                alert('Failed to start avatar introduction. Your browser may be blocking audio playback. Please interact with the page (e.g., click anywhere) and try again. See console for details.');
+            }
         }
-    }, 500); // Short delay to ensure avatar is fully ready
+    }, 500);
 }
 
 // =================== SMOOTH SCROLL FUNCTION ===================
@@ -834,7 +849,8 @@ async function sendMessageToGPT(userMessage) {
         try {
             await avatarSynthesizer.stopSpeakingAsync();
             isSpeaking = false;
-            document.getElementById('stopSpeaking').disabled = true;
+            const stopSpeakingBtn = document.getElementById('stopSpeaking');
+            if (stopSpeakingBtn) stopSpeakingBtn.disabled = true;
         } catch (error) {
             console.error("Error stopping current speech:", error);
         }
@@ -985,15 +1001,24 @@ function stopMicrophone() {
 // =================== SPEAK WITH AVATAR ===================
 async function speakWithAvatar(message) {
     if (!avatarSynthesizer) {
-        console.error("Avatar synthesizer is not initialized.");
-        return;
+        console.error("[speakWithAvatar] Avatar synthesizer is not initialized.");
+        throw new Error('Avatar synthesizer is not initialized');
+    }
+    if (!message || typeof message !== 'string' || message.trim() === '') {
+        console.error('[speakWithAvatar] Message to speak is empty or invalid:', message);
+        throw new Error('Message to speak is empty or invalid');
+    }
+    if (typeof avatarSynthesizer.speakTextAsync !== 'function') {
+        console.error('[speakWithAvatar] speakTextAsync is not a function on avatarSynthesizer:', avatarSynthesizer);
+        throw new Error('speakTextAsync is not a function on avatarSynthesizer');
     }
 
     // Disable microphone and update icon when avatar starts speaking
     if (window.avatarSpeaking) window.avatarSpeaking();
 
     isSpeaking = true;
-    document.getElementById('stopSpeaking').disabled = false;
+    const stopSpeakingBtn = document.getElementById('stopSpeaking');
+    if (stopSpeakingBtn) stopSpeakingBtn.disabled = false;
 
     // Smooth scroll to bottom before speaking
     smoothScrollToBottom();
@@ -1006,7 +1031,8 @@ async function speakWithAvatar(message) {
         console.error("Error speaking with avatar:", error);
     } finally {
         isSpeaking = false;
-        document.getElementById('stopSpeaking').disabled = true;
+        const stopSpeakingBtn = document.getElementById('stopSpeaking');
+        if (stopSpeakingBtn) stopSpeakingBtn.disabled = true;
         // Ensure we end at the bottom with smooth scroll
         smoothScrollToBottom();
         // Add a short delay before re-enabling microphone so the disabled icon is visible
