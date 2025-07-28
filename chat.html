@@ -123,11 +123,11 @@
     .modal {
       display: none;
       position: fixed;
-      z-index: 1000;
+      z-index: 3000;
       left: 0;
       top: 0;
-      width: 100%;
-      height: 100%;
+      width: 100vw;
+      height: 100vh;
       background-color: rgba(0,0,0,0.5);
       backdrop-filter: blur(5px);
     }
@@ -418,7 +418,7 @@
         micIcon.style.color = '#888';
         micIcon.title = 'Microphone Disabled';
         if (micMsg) {
-          micMsg.textContent = 'Microphone is off. Press Spacebar to turn it on.';
+          micMsg.textContent = 'Microphone is off. Press spacebar to turn it on.';
         }
       }
     };
@@ -440,6 +440,14 @@
       }
     });
   </script>
+
+  <!-- Session Loading Modal -->
+  <div id="sessionLoadingModal" class="modal" style="display:none; z-index:2000;">
+    <div class="modal-content" style="text-align:center; padding:40px 30px; max-width:400px;">
+      <h2 style="margin-bottom:18px;">Starting Session...</h2>
+      <div style="font-size:18px; color:#444;">Please wait while your avatar session is being prepared.<br><br><span style="font-size:32px;">⏳</span></div>
+    </div>
+  </div>
 
   <!-- Prompt Editor Modal -->
   <div id="promptModal" class="modal">

@@ -222,9 +222,36 @@ window.startSession = function() {
     // Always reset introduction flag so intro is spoken on every session start
     hasIntroduced = false;
     try { sessionStorage.removeItem('hasIntroduced'); } catch (e) {}
-    document.getElementById('openSessionButton').disabled = true;
-    // document.getElementById('controlsToolbar').style.display = 'block'; // Removed, not present in HTML
-    connectAvatar();
+    // Clear chat history at the start of every session
+    if (typeof window.clearChatHistory === 'function') window.clearChatHistory();
+    var openSessionBtn = document.getElementById('openSessionButton');
+    var loadingModal = document.getElementById('sessionLoadingModal');
+    if (loadingModal) {
+        setTimeout(function() {
+            loadingModal.style.display = 'block';
+            loadingModal.style.setProperty('display', 'block', 'important');
+            loadingModal.style.zIndex = 9999;
+            loadingModal.style.position = 'fixed';
+            loadingModal.style.left = '0';
+            loadingModal.style.top = '0';
+            loadingModal.style.width = '100vw';
+            loadingModal.style.height = '100vh';
+            console.log('[DEBUG] Showing sessionLoadingModal');
+        }, 0);
+    }
+    if (openSessionBtn) {
+        openSessionBtn.disabled = true;
+        // Prevent rapid re-enabling for at least 4 seconds
+        setTimeout(function() {
+            openSessionBtn.disabled = false;
+        }, 4000);
+    }
+    // Hide modal only after session is truly ready (video or speech ready)
+    Promise.resolve(connectAvatar(loadingModal))
+        .catch(function(err) {
+            if (loadingModal) loadingModal.style.display = 'none';
+            alert('Failed to initialize avatar session. See console for details.');
+        });
 };
 
 // Called when "Close Avatar Session" is clicked
@@ -459,7 +486,7 @@ function makeBackgroundTransparent(timestamp) {
 }
 
 // =================== CONNECT AVATAR SERVICE ===================
-async function connectAvatar() {
+async function connectAvatar(loadingModal) {
     console.log("Connecting to avatar...");
 
     // If a custom avatar image is used, we don't need the full avatar synthesizer
@@ -530,7 +557,10 @@ async function connectAvatar() {
             
             // Do not auto-start microphone; user controls with spacebar
             document.getElementById('microphone').textContent = '🎤 Start Microphone';
-            
+
+            // Hide loading modal as soon as session is ready (custom avatar)
+            if (loadingModal) loadingModal.style.display = 'none';
+
             // Auto-start the conversation with the introduction
             await autoStartConversation();
         } catch (err) {
@@ -670,6 +700,11 @@ function setupWebRTC(iceServerUrl, iceServerUsername, iceServerCredential) {
                 } else {
                     document.getElementById('canvas').hidden = true;
                 }
+
+                // Hide loading modal as soon as video is playing (video avatar)
+                var loadingModal = document.getElementById('sessionLoadingModal');
+                if (loadingModal) loadingModal.style.display = 'none';
+
                 setTimeout(() => { 
                     console.log('Session marked as active.');
                     sessionActive = true;
@@ -768,6 +803,10 @@ async function autoStartConversation() {
     console.log('Auto-starting conversation with introduction...');
     setTimeout(async () => {
         try {
+            if (!avatarSynthesizer) {
+                alert('Avatar is not ready yet. Please wait a moment and try again.');
+                return;
+            }
             console.log('[autoStartConversation] avatarSynthesizer:', avatarSynthesizer);
             // Use a dedicated, user-friendly introduction message
             let introductionMessage = "Hello! I'm an AI avatar trained to answer questions about 'Four Gifts From the Founders of AI.' What would you like to know?";
@@ -778,11 +817,7 @@ async function autoStartConversation() {
             console.log('Auto-introduction completed successfully');
         } catch (error) {
             console.error('[autoStartConversation] Error during avatar introduction:', error);
-            if (!avatarSynthesizer) {
-                alert('Avatar synthesizer is not initialized. See console for details.');
-            } else {
-                alert('Failed to start avatar introduction. Your browser may be blocking audio playback. Please interact with the page (e.g., click anywhere) and try again. See console for details.');
-            }
+            alert('Failed to start avatar introduction. Your browser may be blocking audio playback or the avatar is not ready. Please interact with the page (e.g., click anywhere) and try again. See console for details.');
         }
     }, 500);
 }
