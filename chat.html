@@ -411,14 +411,14 @@
         micIcon.style.color = '#2196F3';
         micIcon.title = 'Microphone Enabled';
         if (micMsg) {
-          micMsg.textContent = 'Microphone is on. Ask your question or wait for the avatar to finish.';
+          micMsg.textContent = 'Microphone is on. Ask your question.';
         }
       } else {
         micIcon.textContent = '🔴🔇';
         micIcon.style.color = '#888';
         micIcon.title = 'Microphone Disabled';
         if (micMsg) {
-          micMsg.textContent = 'Microphone is off. Press Space Bar to interrupt and ask your question.';
+          micMsg.textContent = 'Microphone is off. Press Spacebar to turn it on.';
         }
       }
     };

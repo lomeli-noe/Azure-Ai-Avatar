@@ -156,14 +156,15 @@ window.onload = async function() {
             }
         });
 
-        // Add space bar event handler to enable microphone if disabled
-        // This should be inside window.onload to ensure DOM is ready
+        // Add space bar event handler to toggle microphone
         window.addEventListener('keydown', (event) => {
             if (event.code === 'Space' && !event.repeat) {
-                // Only enable microphone if currently disabled
-                if (!microphoneEnabled) {
+                if (microphoneEnabled) {
+                    stopMicrophone();
+                } else {
                     startMicrophone();
                 }
+                event.preventDefault();
             }
         });
 
@@ -409,9 +410,7 @@ window.stopSpeaking = function() {
 
 // Ensure this global function disables the microphone and updates UI
 window.avatarSpeaking = function() {
-    // Stop the microphone so user cannot interrupt
-    stopMicrophone();
-    // Update the microphone status icon (if present)
+    // No longer auto-disables microphone; only update icon if needed
     const micStatusIcon = document.getElementById('microphoneStatusIcon');
     if (micStatusIcon) {
         micStatusIcon.classList.remove('mic-enabled');
@@ -529,9 +528,8 @@ async function connectAvatar() {
             document.getElementById('stopSession').disabled = false;
             sessionActive = true;
             
-            // Auto-start microphone
-            startMicrophone();
-            document.getElementById('microphone').textContent = '🛑 Stop Microphone';
+            // Do not auto-start microphone; user controls with spacebar
+            document.getElementById('microphone').textContent = '🎤 Start Microphone';
             
             // Auto-start the conversation with the introduction
             await autoStartConversation();
@@ -675,11 +673,8 @@ function setupWebRTC(iceServerUrl, iceServerUsername, iceServerCredential) {
                 setTimeout(() => { 
                     console.log('Session marked as active.');
                     sessionActive = true;
-                    
-                    // Auto-start microphone
-                    startMicrophone();
-                    document.getElementById('microphone').textContent = '🛑 Stop Microphone';
-                    
+                    // Do not auto-start microphone; user controls with spacebar
+                    document.getElementById('microphone').textContent = '🎤 Start Microphone';
                     // Auto-start the conversation with the introduction
                     autoStartConversation();
                 }, 1000); // Session is active
@@ -775,7 +770,7 @@ async function autoStartConversation() {
         try {
             console.log('[autoStartConversation] avatarSynthesizer:', avatarSynthesizer);
             // Use a dedicated, user-friendly introduction message
-            let introductionMessage = "Hello! I'm an AI avatar trained to answer questions about the conference paper 'Four Gifts From the Founders of AI.' I'm here to help you explore this research. Feel free to ask me any question about the paper, or if you'd prefer, I can suggest some interesting questions to get us started. What would you like to know?";
+            let introductionMessage = "Hello! I'm an AI avatar trained to answer questions about 'Four Gifts From the Founders of AI.' What would you like to know?";
             // Add the introduction message to the chat as an assistant message
             addMessage('Assistant', introductionMessage);
             // Speak the introduction
@@ -917,17 +912,7 @@ function startMicrophone() {
         console.error("Speech recognizer is not initialized.");
         return;
     }
-    // If avatar is currently speaking, stop it before enabling microphone
-    if (isSpeaking && avatarSynthesizer && typeof avatarSynthesizer.stopSpeakingAsync === 'function') {
-        try {
-            avatarSynthesizer.stopSpeakingAsync();
-            isSpeaking = false;
-            const stopSpeakingBtn = document.getElementById('stopSpeaking');
-            if (stopSpeakingBtn) stopSpeakingBtn.disabled = true;
-        } catch (err) {
-            console.error("Error stopping avatar speech when enabling microphone:", err);
-        }
-    }
+    // Do not stop avatar speech when enabling microphone
     console.log("Starting continuous speech recognition...");
 
     speechRecognizer.recognizing = (s, e) => {
@@ -1000,14 +985,8 @@ async function speakWithAvatar(message) {
         throw new Error('speakTextAsync is not a function on avatarSynthesizer');
     }
 
-    // Disable microphone and update icon when avatar starts speaking
-    if (window.avatarSpeaking) window.avatarSpeaking();
-
-    // Stop microphone if it is currently enabled
-    if (microphoneEnabled) {
-        stopMicrophone();
-    }
-
+    // Optionally update icon when avatar starts speaking
+    // (No longer auto-disables/enables microphone)
     isSpeaking = true;
     const stopSpeakingBtn = document.getElementById('stopSpeaking');
     if (stopSpeakingBtn) stopSpeakingBtn.disabled = false;
@@ -1027,10 +1006,7 @@ async function speakWithAvatar(message) {
         if (stopSpeakingBtn) stopSpeakingBtn.disabled = true;
         // Ensure we end at the bottom with smooth scroll
         smoothScrollToBottom();
-        // Add a short delay before re-enabling microphone so the disabled icon is visible
-        setTimeout(() => {
-            startMicrophone();
-        }, 500); // 500ms delay
+        // Do not auto-enable microphone after speaking
     }
 }
 
