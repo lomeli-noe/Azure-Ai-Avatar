@@ -286,7 +286,7 @@
 
   <div id="mainFlexRow" style="display: flex; flex-direction: row; width: 100vw; height: 100vh; min-height: 100vh; min-width: 100vw;">
     <!-- Sidebar Menu (now in flow, not fixed) -->
-    <div id="sidebarMenu" class="sidebar-collapsed" style="height: 100vh; transition: width 0.3s cubic-bezier(0.4,0,0.2,1); position: relative;">
+    <div id="sidebarMenu" class="sidebar-collapsed" style="height: 100vh; transition: width 0.3s cubic-bezier(0.4,0,0.2,1); position: relative; padding-left: 36px;">
       <div id="sidebarButtons">
         <button id="openSessionButton" onclick="window.startSession()" disabled>🚀 Open Avatar Session</button>
         <!-- Microphone button hidden for now -->
@@ -303,7 +303,7 @@
       <!-- The avatar/video container, with chat overlayed -->
       <div id="videoContainer" style="position: relative; width: 100%; height: 100vh; background-color: #FFFFFF; border-radius: 5px; overflow: hidden;">
         <!-- Remote avatar feed -->
-        <div id="remoteVideo" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></div>
+        <div id="remoteVideo" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; clip-path: inset(0 20% 0 10%); transform: translateX(300px);"></div>
         <!-- Canvas elements for video processing, hidden by default -->
         <canvas id="canvas" width="1920" height="1080" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: transparent; z-index: 1;" hidden="hidden"></canvas>
         <canvas id="tmpCanvas" width="1920" height="1080" hidden="hidden"></canvas>

@@ -947,7 +947,18 @@ function startMicrophone() {
         console.error("Speech recognizer is not initialized.");
         return;
     }
-    // Do not stop avatar speech when enabling microphone
+    // If avatar is speaking, stop it immediately when mic is enabled
+    if (isSpeaking && avatarSynthesizer && typeof avatarSynthesizer.stopSpeakingAsync === 'function') {
+        try {
+            avatarSynthesizer.stopSpeakingAsync();
+            isSpeaking = false;
+            const stopSpeakingBtn = document.getElementById('stopSpeaking');
+            if (stopSpeakingBtn) stopSpeakingBtn.disabled = true;
+            console.log("Avatar speech stopped due to microphone activation.");
+        } catch (err) {
+            console.error("Error stopping avatar speech when enabling microphone:", err);
+        }
+    }
     console.log("Starting continuous speech recognition...");
 
     speechRecognizer.recognizing = (s, e) => {

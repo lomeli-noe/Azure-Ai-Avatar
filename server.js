@@ -1,10 +1,30 @@
-const express = require('express');
+
+
+console.log('=== server.js loaded ===');
 const dotenv = require('dotenv');
+dotenv.config();
+const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const fetch = require('node-fetch');
+const { MongoClient } = require('mongodb');
+// MongoDB setup
+const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017';
+console.log('MongoDB URI:', process.env.MONGODB_URI);
+const mongoDbName = process.env.MONGODB_DBNAME || 'avatar';
+let mongoClient, mongoDb;
 
-dotenv.config();
+
+async function connectMongo() {
+    if (!mongoClient) {
+        mongoClient = new MongoClient(mongoUri, { useUnifiedTopology: true });
+        await mongoClient.connect();
+        mongoDb = mongoClient.db(mongoDbName);
+        console.log('Connected to MongoDB:', mongoUri, 'DB:', mongoDbName);
+    }
+    return mongoDb;
+}
+
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -91,23 +111,45 @@ app.get('/api/prompt/:promptName', (req, res) => {
 });
 
 // Endpoint to save a specific prompt
-app.post('/api/prompt/:promptName', (req, res) => {
+app.post('/api/prompt/:promptName', async (req, res) => {
     const promptName = req.params.promptName;
     const newPrompt = req.body.prompt;
     const promptFilePath = path.join(__dirname, 'prompts', `${promptName}.txt`);
 
-    if (newPrompt) {
-        fs.writeFile(promptFilePath, newPrompt, 'utf-8', (err) => {
-            if (err) {
-                console.error(`Error writing to ${promptFilePath}:`, err);
-                return res.status(500).send('Error saving prompt.');
-            }
-            console.log(`Prompt ${promptName} updated successfully.`);
-            res.send('Prompt saved successfully.');
-        });
-    } else {
-        res.status(400).send('Prompt content is missing.');
+    if (!newPrompt) {
+        return res.status(400).send('Prompt content is missing.');
     }
+
+    // Save to file as before
+    fs.writeFile(promptFilePath, newPrompt, 'utf-8', async (err) => {
+        if (err) {
+            console.error(`Error writing to ${promptFilePath}:`, err);
+            return res.status(500).send('Error saving prompt.');
+        }
+        console.log(`Prompt ${promptName} updated successfully.`);
+
+        // Save to MongoDB
+        try {
+            const db = await connectMongo();
+            const collection = db.collection('avatar_prompt');
+            const filter = { promptName };
+            const update = {
+                $set: {
+                    promptName,
+                    prompt: newPrompt,
+                    updatedAt: new Date()
+                }
+            };
+            const options = { upsert: true };
+            await collection.updateOne(filter, update, options);
+            console.log(`Prompt ${promptName} saved to MongoDB.`);
+        } catch (mongoErr) {
+            console.error('Error saving prompt to MongoDB:', mongoErr);
+            // Still return success for file save, but log the error
+        }
+
+        res.send('Prompt saved successfully.');
+    });
 });
 
 // Endpoint to save the system prompt (legacy support)
