@@ -341,7 +341,7 @@
             background: rgba(30,30,30,0.80);
             border-radius: 12px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.18);
-            padding: 10px 24px;
+            padding: 1px 4px;
             backdrop-filter: blur(8px) saturate(180%);
             -webkit-backdrop-filter: blur(8px) saturate(180%);
             border: 1px solid rgba(255,255,255,0.13);
@@ -397,7 +397,115 @@
       mainContainer.style.marginLeft = '0px';
       sidebarToggle.innerHTML = '&gt;';
       sidebarToggle.style.left = '12px';
+      // Ensure mic status is set on page load
+      window.setMicStatus(false);
     });
+
+    // Ensure mic status is set when session starts
+    if (!window.startSession) {
+      window.startSession = function() {
+        window.setMicStatus(false);
+        // ...existing code for starting session...
+      }
+    } else {
+      const origStartSession = window.startSession;
+      window.startSession = function() {
+        window.setMicStatus(false);
+        return origStartSession.apply(this, arguments);
+      }
+    }
+
+    // Stop session: reset UI to initial state
+    window.resetUiToFirstLoad = function() {
+      // Always clear chat history
+      var chatHistory = document.getElementById('chat-history');
+      if (chatHistory) chatHistory.innerHTML = '';
+      // Hide and clear chat container
+      var chatContainer = document.getElementById('chatContainer');
+      if (chatContainer) {
+        chatContainer.style.display = 'none';
+        // Remove all message elements
+        var msgDivs = chatContainer.querySelectorAll('.message, .user-message, .assistant-message');
+        msgDivs.forEach(function(div) { div.remove(); });
+      }
+      // Remove video content and hide video container
+      var remoteVideo = document.getElementById('remoteVideo');
+      if (remoteVideo) {
+        remoteVideo.innerHTML = '';
+        remoteVideo.style.background = 'transparent';
+      }
+      var videoContainer = document.getElementById('videoContainer');
+      if (videoContainer) {
+        // Hide and clear video container, but do not remove children (to avoid breaking layout)
+        videoContainer.style.display = 'none';
+        videoContainer.style.backgroundColor = 'transparent';
+        // Also clear all <video> and <canvas> elements inside
+        var vids = videoContainer.querySelectorAll('video, canvas');
+        vids.forEach(function(el) {
+          if (el.tagName === 'VIDEO') {
+            el.src = '';
+            el.load && el.load();
+          }
+          el.hidden = true;
+        });
+      }
+      // Reset mic status
+      window.setMicStatus(false);
+      // Reset buttons
+      var openSessionBtn = document.getElementById('openSessionButton');
+      if (openSessionBtn) openSessionBtn.disabled = false;
+      var stopSessionBtn = document.getElementById('stopSession');
+      if (stopSessionBtn) stopSessionBtn.disabled = true;
+      var micBtn = document.getElementById('microphone');
+      if (micBtn) {
+        micBtn.disabled = true;
+        micBtn.style.display = 'none';
+        micBtn.textContent = '🎤 Start Microphone';
+      }
+      // Hide modals
+      var sessionModal = document.getElementById('sessionLoadingModal');
+      if (sessionModal) sessionModal.style.display = 'none';
+      var promptModal = document.getElementById('promptModal');
+      if (promptModal) promptModal.style.display = 'none';
+      // Reset sidebar
+      var sidebarMenu = document.getElementById('sidebarMenu');
+      var mainContainer = document.getElementById('mainContainer');
+      if (sidebarMenu && mainContainer) {
+        sidebarMenu.classList.remove('sidebar-expanded');
+        sidebarMenu.classList.add('sidebar-collapsed');
+        sidebarMenu.style.width = '0px';
+        sidebarMenu.style.minWidth = '0px';
+        sidebarMenu.style.maxWidth = '0px';
+        sidebarMenu.style.overflow = 'hidden';
+        mainContainer.style.marginLeft = '0px';
+        var sidebarToggle = document.getElementById('sidebarToggle');
+        if (sidebarToggle) {
+          sidebarToggle.innerHTML = '&gt;';
+          sidebarToggle.style.left = '12px';
+        }
+      }
+      // Also hide logoAndChatWrapper if present (to hide logo area)
+      var logoAndChatWrapper = document.getElementById('logoAndChatWrapper');
+      if (logoAndChatWrapper) logoAndChatWrapper.style.display = 'none';
+      // Optionally, hide sidebarMenu itself
+      var sidebarMenu = document.getElementById('sidebarMenu');
+      if (sidebarMenu) sidebarMenu.style.display = 'none';
+      var sidebarToggle = document.getElementById('sidebarToggle');
+      if (sidebarToggle) sidebarToggle.style.display = 'none';
+    }
+  // Show all main UI elements on first load
+  document.addEventListener('DOMContentLoaded', function() {
+    var chatContainer = document.getElementById('chatContainer');
+    if (chatContainer) chatContainer.style.display = '';
+    var logoAndChatWrapper = document.getElementById('logoAndChatWrapper');
+    if (logoAndChatWrapper) logoAndChatWrapper.style.display = '';
+    var videoContainer = document.getElementById('videoContainer');
+    if (videoContainer) videoContainer.style.display = '';
+    var sidebarMenu = document.getElementById('sidebarMenu');
+    if (sidebarMenu) sidebarMenu.style.display = '';
+    var sidebarToggle = document.getElementById('sidebarToggle');
+    if (sidebarToggle) sidebarToggle.style.display = '';
+  });
 
     // Microphone status icon logic
     window.micEnabled = false; // Track mic state
@@ -411,7 +519,7 @@
         micIcon.style.color = '#2196F3';
         micIcon.title = 'Microphone Enabled';
         if (micMsg) {
-          micMsg.textContent = 'Microphone is on. Ask your question.';
+          micMsg.textContent = '“Microphone is on. Ask your question. Then press spacebar to turn it off.”';
         }
       } else {
         micIcon.textContent = '🔴🔇';

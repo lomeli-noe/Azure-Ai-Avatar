@@ -13,6 +13,8 @@ var currentPrompt = 'superintelligence_prompt'; // Default prompt
 // Use sessionStorage to persist introduction state across reloads
 var hasIntroduced = false;
 var microphoneEnabled = false; // Track microphone state
+var questionInProgress = false; // Prevents multiple questions at once
+var processingMsgDiv = null;
 try {
     hasIntroduced = sessionStorage.getItem('hasIntroduced') === 'true';
 } catch (e) {
@@ -20,6 +22,46 @@ try {
 }
 
 // =================== UI CONTROL FUNCTIONS ===================
+// Called when "Open Avatar Session" is clicked
+window.startSession = function() {
+    window.setMicStatus(false);
+    // Always reset introduction flag so intro is spoken on every session start
+    hasIntroduced = false;
+    try { sessionStorage.removeItem('hasIntroduced'); } catch (e) {}
+    // Clear chat history at the start of every session
+    if (typeof window.clearChatHistory === 'function') window.clearChatHistory();
+    // Ensure main UI containers are visible
+    var chatContainer = document.getElementById('chatContainer');
+    if (chatContainer) {
+        chatContainer.style.display = '';
+        chatContainer.hidden = false;
+    }
+    var videoContainer = document.getElementById('videoContainer');
+    if (videoContainer) {
+        videoContainer.style.display = '';
+        videoContainer.hidden = false;
+    }
+    // Hide session status message if present
+    var statusMsg = document.getElementById('sessionStatusMessage');
+    if (statusMsg) statusMsg.style.display = 'none';
+    var openSessionBtn = document.getElementById('openSessionButton');
+    var loadingModal = document.getElementById('sessionLoadingModal');
+    if (loadingModal) {
+        loadingModal.style.display = 'block';
+        loadingModal.style.width = '100vw';
+        loadingModal.style.height = '100vh';
+        console.log('[DEBUG] Showing sessionLoadingModal');
+    }
+    if (openSessionBtn) {
+        openSessionBtn.disabled = true;
+    }
+    // Hide modal only after session is truly ready (video or speech ready)
+    Promise.resolve(connectAvatar(loadingModal))
+        .catch(function(err) {
+            if (loadingModal) loadingModal.style.display = 'none';
+            alert('Failed to initialize avatar session. See console for details.');
+        });
+}
 
 // Called when the page is loaded
 window.onload = async function() {
@@ -186,7 +228,6 @@ window.onload = async function() {
         console.error('Global error caught:', event);
         alert('An unexpected error occurred. Please try again later.');
     });
-};
 
 // Called when the knowledge base selection changes
 window.switchKnowledgeBase = function() {
@@ -217,41 +258,7 @@ window.switchPrompt = async function() {
     alert(`Prompt switched to "${selector.options[selector.selectedIndex].text}". The chat has been reset.`);
 };
 
-// Called when "Open Avatar Session" is clicked
-window.startSession = function() {
-    // Always reset introduction flag so intro is spoken on every session start
-    hasIntroduced = false;
-    try { sessionStorage.removeItem('hasIntroduced'); } catch (e) {}
-    // Clear chat history at the start of every session
-    if (typeof window.clearChatHistory === 'function') window.clearChatHistory();
-    var openSessionBtn = document.getElementById('openSessionButton');
-    var loadingModal = document.getElementById('sessionLoadingModal');
-    if (loadingModal) {
-        setTimeout(function() {
-            loadingModal.style.display = 'block';
-            loadingModal.style.setProperty('display', 'block', 'important');
-            loadingModal.style.zIndex = 9999;
-            loadingModal.style.position = 'fixed';
-            loadingModal.style.left = '0';
-            loadingModal.style.top = '0';
-            loadingModal.style.width = '100vw';
-            loadingModal.style.height = '100vh';
-            console.log('[DEBUG] Showing sessionLoadingModal');
-        }, 0);
-    }
-    if (openSessionBtn) {
-        openSessionBtn.disabled = true;
-        // Prevent rapid re-enabling for at least 4 seconds
-        setTimeout(function() {
-            openSessionBtn.disabled = false;
-        }, 4000);
-    }
-    // Hide modal only after session is truly ready (video or speech ready)
-    Promise.resolve(connectAvatar(loadingModal))
-        .catch(function(err) {
-            if (loadingModal) loadingModal.style.display = 'none';
-            alert('Failed to initialize avatar session. See console for details.');
-        });
+// ...existing code...
 };
 
 // Called when "Close Avatar Session" is clicked
@@ -259,8 +266,11 @@ window.stopSession = function() {
     disconnectAvatar();
     document.getElementById('openSessionButton').disabled = false;
     // document.getElementById('controlsToolbar').style.display = 'none'; // Removed, not present in HTML
-    document.getElementById('chatContainer').hidden = true;
+    var chatContainer = document.getElementById('chatContainer');
+    if (chatContainer) chatContainer.style.display = 'none';
     document.getElementById('videoContainer').hidden = true;
+    var videoContainer = document.getElementById('videoContainer');
+    if (videoContainer) videoContainer.style.display = 'none';
     document.getElementById('microphone').disabled = true;
     document.getElementById('microphone').textContent = '🎤 Start Microphone'; // Reset button text
     document.getElementById('stopSession').disabled = true;
@@ -270,6 +280,28 @@ window.stopSession = function() {
     // Reset greeting flag so avatar greets on next session start
     hasIntroduced = false;
     try { sessionStorage.removeItem('hasIntroduced'); } catch (e) {}
+
+    // Show session closed message in the main area
+    var statusMsg = document.getElementById('sessionStatusMessage');
+    if (!statusMsg) {
+        statusMsg = document.createElement('div');
+        statusMsg.id = 'sessionStatusMessage';
+        statusMsg.style.position = 'absolute';
+        statusMsg.style.top = '50%';
+        statusMsg.style.left = '50%';
+        statusMsg.style.transform = 'translate(-50%, -50%)';
+        statusMsg.style.fontSize = '2rem';
+        statusMsg.style.color = '#333';
+        statusMsg.style.background = 'rgba(255,255,255,0.95)';
+        statusMsg.style.padding = '2rem 3rem';
+        statusMsg.style.borderRadius = '1rem';
+        statusMsg.style.boxShadow = '0 2px 16px rgba(0,0,0,0.08)';
+        statusMsg.style.textAlign = 'center';
+        statusMsg.style.zIndex = 1000;
+        document.body.appendChild(statusMsg);
+    }
+    statusMsg.innerHTML = '🛑 <b>Session closed.</b><br><br>You can open a new session using the <span style="color:green;font-weight:bold;">Open Avatar Session</span> button.';
+    statusMsg.style.display = 'block';
 };
 
 // Called when "Clear Chat History" is clicked
@@ -346,6 +378,10 @@ window.updateTypeMessageBox = function() {
 // Send a message from the typed message box
 window.sendTypedMessage = function() {
     const userMessageBox = document.getElementById('userMessageBox');
+    if (questionInProgress) {
+        console.warn('A question is already being processed. Ignoring new input.');
+        return;
+    }
     if (userMessageBox) {
         const userMessage = userMessageBox.textContent || userMessageBox.innerHTML;
         if (userMessage && userMessage.trim() !== '') {
@@ -871,27 +907,45 @@ function addMessage(role, content) {
 
 // =================== SEND MESSAGE TO GPT ===================
 async function sendMessageToGPT(userMessage) {
-    console.log('Sending message to GPT:', userMessage);
-    
-    // Stop current speaking if avatar is talking
-    if (isSpeaking && avatarSynthesizer) {
-        console.log("Stopping current speech to answer new question...");
+    if (questionInProgress) {
+        console.warn('A question is already being processed. Ignoring new input.');
+        // Always disable the mic button if session is active (defensive)
+        const micButton = document.getElementById('microphone');
+        if (micButton && sessionActive) micButton.disabled = true;
+        return;
+    }
+    // Interrupt avatar if speaking
+    if (isSpeaking && avatarSynthesizer && typeof avatarSynthesizer.stopSpeakingAsync === 'function') {
         try {
             await avatarSynthesizer.stopSpeakingAsync();
             isSpeaking = false;
             const stopSpeakingBtn = document.getElementById('stopSpeaking');
             if (stopSpeakingBtn) stopSpeakingBtn.disabled = true;
-        } catch (error) {
-            console.error("Error stopping current speech:", error);
+            // Always enable the mic button so user can interrupt by voice
+            const micButton = document.getElementById('microphone');
+            if (micButton) micButton.disabled = false;
+            console.log("Avatar speech interrupted for new question.");
+        } catch (err) {
+            console.error("Error interrupting avatar speech:", err);
         }
     }
-    
-    // Add user message to chat
+    // Always disable the mic button while processing (defensive)
+    const micButton = document.getElementById('microphone');
+    if (micButton && sessionActive) micButton.disabled = true;
+    questionInProgress = true;
+    console.log('Sending message to GPT:', userMessage);
+
     addMessage('User', userMessage);
-    
-    // Add user message to conversation
     messages.push({ role: 'user', content: userMessage });
-    
+
+    // Add 'Processing...' message to chat and keep reference
+    const chatHistory = document.getElementById('chat-history');
+    processingMsgDiv = document.createElement('div');
+    processingMsgDiv.className = 'assistant-message processing-message';
+    processingMsgDiv.textContent = '⏳ Processing...';
+    chatHistory.appendChild(processingMsgDiv);
+    smoothScrollToBottom();
+
     try {
         const requestData = {
             messages: messages,
@@ -901,43 +955,30 @@ async function sendMessageToGPT(userMessage) {
             frequency_penalty: 0,
             presence_penalty: 0
         };
-        
-        // Do NOT add data sources for RAG; only use prompt and messages
-        
-        console.log('[DEBUG] Sending request to /api/gpt:');
-        console.log('- Messages count:', requestData.messages.length);
-        console.log('- Has data sources:', !!requestData.data_sources);
-        console.log('- Data sources count:', requestData.data_sources?.length || 0);
-        
         const response = await fetch('/api/gpt', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(requestData),
         });
-        
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         const responseData = await response.json();
         const gptMessage = responseData.choices[0].message.content;
-        
-        // Add GPT response to conversation
         messages.push({ role: 'assistant', content: gptMessage });
-        
-        // Add GPT response to chat display
-        addMessage('Assistant', gptMessage);
-        
-        // Speak the GPT message using the avatar
         await speakWithAvatar(gptMessage);
-        
     } catch (error) {
         console.error('Error sending message to GPT:', error);
         const errorMessage = 'Sorry, I encountered an error processing your request. Please try again.';
-        addMessage('Assistant', errorMessage);
+        if (processingMsgDiv) {
+            processingMsgDiv.textContent = errorMessage;
+            processingMsgDiv = null;
+        } else {
+            addMessage('Assistant', errorMessage);
+        }
         await speakWithAvatar(errorMessage);
+    } finally {
+        // Always enable the mic button after a question is processed, unless session is closed
+        const micButton = document.getElementById('microphone');
+        if (micButton && sessionActive) micButton.disabled = false;
     }
 }
 
@@ -947,18 +988,31 @@ function startMicrophone() {
         console.error("Speech recognizer is not initialized.");
         return;
     }
-    // If avatar is speaking, stop it immediately when mic is enabled
+    if (questionInProgress) {
+        console.warn('A question is already being processed. Ignoring new input.');
+        // Always enable the mic button if session is active (defensive)
+        const micButton = document.getElementById('microphone');
+        if (micButton && sessionActive) micButton.disabled = false;
+        return;
+    }
+    // Interrupt avatar if speaking
     if (isSpeaking && avatarSynthesizer && typeof avatarSynthesizer.stopSpeakingAsync === 'function') {
         try {
             avatarSynthesizer.stopSpeakingAsync();
             isSpeaking = false;
             const stopSpeakingBtn = document.getElementById('stopSpeaking');
             if (stopSpeakingBtn) stopSpeakingBtn.disabled = true;
-            console.log("Avatar speech stopped due to microphone activation.");
+            // Always enable the mic button so user can interrupt by voice
+            const micButton = document.getElementById('microphone');
+            if (micButton) micButton.disabled = false;
+            console.log("Avatar speech interrupted for microphone input.");
         } catch (err) {
-            console.error("Error stopping avatar speech when enabling microphone:", err);
+            console.error("Error interrupting avatar speech for mic:", err);
         }
     }
+    // Always enable the mic button after starting mic (defensive)
+    const micButton = document.getElementById('microphone');
+    if (micButton && sessionActive) micButton.disabled = false;
     console.log("Starting continuous speech recognition...");
 
     speechRecognizer.recognizing = (s, e) => {
@@ -1006,11 +1060,17 @@ function stopMicrophone() {
                 console.log("Speech recognition stopped successfully.");
                 microphoneEnabled = false;
                 if (window.setMicStatus) window.setMicStatus(false);
+                // Always enable the mic button after stopping mic (defensive)
+                const micButton = document.getElementById('microphone');
+                if (micButton && sessionActive) micButton.disabled = false;
             },
             err => {
                 console.error("Failed to stop speech recognition: ", err);
                 microphoneEnabled = false;
                 if (window.setMicStatus) window.setMicStatus(false);
+                // Always enable the mic button after stopping mic (defensive)
+                const micButton = document.getElementById('microphone');
+                if (micButton && sessionActive) micButton.disabled = false;
             }
         );
     }
@@ -1018,41 +1078,46 @@ function stopMicrophone() {
 
 // =================== SPEAK WITH AVATAR ===================
 async function speakWithAvatar(message) {
-    if (!avatarSynthesizer) {
-        console.error("[speakWithAvatar] Avatar synthesizer is not initialized.");
-        throw new Error('Avatar synthesizer is not initialized');
-    }
-    if (!message || typeof message !== 'string' || message.trim() === '') {
-        console.error('[speakWithAvatar] Message to speak is empty or invalid:', message);
-        throw new Error('Message to speak is empty or invalid');
-    }
-    if (typeof avatarSynthesizer.speakTextAsync !== 'function') {
-        console.error('[speakWithAvatar] speakTextAsync is not a function on avatarSynthesizer:', avatarSynthesizer);
-        throw new Error('speakTextAsync is not a function on avatarSynthesizer');
-    }
+    if (!avatarSynthesizer) throw new Error('Avatar synthesizer is not initialized');
+    if (!message || typeof message !== 'string' || message.trim() === '') throw new Error('Message to speak is empty or invalid');
+    if (typeof avatarSynthesizer.speakTextAsync !== 'function') throw new Error('speakTextAsync is not a function on avatarSynthesizer');
 
-    // Optionally update icon when avatar starts speaking
-    // (No longer auto-disables/enables microphone)
     isSpeaking = true;
+    // Always get micButton reference once at the top
+    const micButton = document.getElementById('microphone');
+    // Update the processing message in chat to the answer
+    if (processingMsgDiv) {
+        processingMsgDiv.textContent = message;
+        processingMsgDiv = null;
+        smoothScrollToBottom();
+        // Add 2 seconds delay after 'Processing...' is replaced before enabling mic
+        setTimeout(() => {
+            questionInProgress = false;
+            if (micButton && sessionActive) micButton.disabled = false;
+            microphoneEnabled = true;
+        }, 2000);
+    } else {
+        // If no processing message, fallback to previous behavior
+        setTimeout(() => {
+            questionInProgress = false;
+            if (micButton && sessionActive) micButton.disabled = false;
+            microphoneEnabled = true;
+        }, 2000);
+    }
     const stopSpeakingBtn = document.getElementById('stopSpeaking');
     if (stopSpeakingBtn) stopSpeakingBtn.disabled = false;
 
-    // Smooth scroll to bottom before speaking
     smoothScrollToBottom();
 
     try {
-        console.log('Avatar speaking:', message.substring(0, 50) + '...');
         await avatarSynthesizer.speakTextAsync(message);
-        console.log('Avatar finished speaking');
     } catch (error) {
         console.error("Error speaking with avatar:", error);
     } finally {
         isSpeaking = false;
-        const stopSpeakingBtn = document.getElementById('stopSpeaking');
+        // Do not set questionInProgress = false or enable mic here; handled by timeout above
         if (stopSpeakingBtn) stopSpeakingBtn.disabled = true;
-        // Ensure we end at the bottom with smooth scroll
         smoothScrollToBottom();
-        // Do not auto-enable microphone after speaking
     }
 }
 

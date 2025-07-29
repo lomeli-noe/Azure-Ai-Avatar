@@ -95,7 +95,7 @@
     align-items: center;
     margin: 0; /* so it lines up at the top */
     border: 1px solid #ccc; /* Add a border for better visibility */
-    background-color: #1a1a1a;
+    background-color: transparent !important;
   }
 
   #overlayArea {
