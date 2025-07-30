@@ -521,14 +521,14 @@
         micIcon.style.color = '#2196F3';
         micIcon.title = 'Microphone Enabled';
         if (micMsg) {
-          micMsg.textContent = '“Microphone is on. Ask your question. Then press spacebar to turn it off.”';
+          micMsg.textContent = '“Microphone is on. Ask your question. Then press down arrow to turn it off.”';
         }
       } else {
         micIcon.textContent = '🔴🔇';
         micIcon.style.color = '#888';
         micIcon.title = 'Microphone Disabled';
         if (micMsg) {
-          micMsg.textContent = 'Microphone is off. Press spacebar to turn it on.';
+          micMsg.textContent = 'Microphone is off. Press down arrow to turn it on.';
         }
       }
     };
@@ -538,11 +538,11 @@
       window.setMicStatus(false);
     }
 
-    // Toggle microphone with space bar
+    // Toggle microphone with down arrow key
     document.addEventListener('keydown', function(e) {
       var active = document.activeElement;
       if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) return;
-      if (e.code === 'Space' || e.key === ' ' || e.keyCode === 32) {
+      if (e.code === 'ArrowDown' || e.key === 'ArrowDown' || e.keyCode === 40) {
         // Toggle mic state
         window.setMicStatus(!window.micEnabled);
         // Optionally call window.microphone() if you want to trigger actual mic logic

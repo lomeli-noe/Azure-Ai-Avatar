@@ -106,6 +106,8 @@ app.get('/api/prompt/:promptName', (req, res) => {
             const collection = db.collection('avatar_prompt');
             const doc = await collection.findOne({ promptName });
             if (doc && doc.prompt) {
+                // Disable HTTP caching so the latest prompt is always fetched
+                res.set('Cache-Control', 'no-store');
                 return res.json({ prompt: doc.prompt });
             } else {
                 return res.status(404).json({ error: 'Prompt not found.' });
@@ -121,42 +123,30 @@ app.get('/api/prompt/:promptName', (req, res) => {
 app.post('/api/prompt/:promptName', async (req, res) => {
     const promptName = req.params.promptName;
     const newPrompt = req.body.prompt;
-    const promptFilePath = path.join(__dirname, 'prompts', `${promptName}.txt`);
 
     if (!newPrompt) {
         return res.status(400).send('Prompt content is missing.');
     }
 
-    // Save to file as before
-    fs.writeFile(promptFilePath, newPrompt, 'utf-8', async (err) => {
-        if (err) {
-            console.error(`Error writing to ${promptFilePath}:`, err);
-            return res.status(500).send('Error saving prompt.');
-        }
-        console.log(`Prompt ${promptName} updated successfully.`);
-
-        // Save to MongoDB
-        try {
-            const db = await connectMongo();
-            const collection = db.collection('avatar_prompt');
-            const filter = { promptName };
-            const update = {
-                $set: {
-                    promptName,
-                    prompt: newPrompt,
-                    updatedAt: new Date()
-                }
-            };
-            const options = { upsert: true };
-            await collection.updateOne(filter, update, options);
-            console.log(`Prompt ${promptName} saved to MongoDB.`);
-        } catch (mongoErr) {
-            console.error('Error saving prompt to MongoDB:', mongoErr);
-            // Still return success for file save, but log the error
-        }
-
+    try {
+        const db = await connectMongo();
+        const collection = db.collection('avatar_prompt');
+        const filter = { promptName };
+        const update = {
+            $set: {
+                promptName,
+                prompt: newPrompt,
+                updatedAt: new Date()
+            }
+        };
+        const options = { upsert: true };
+        await collection.updateOne(filter, update, options);
+        console.log(`Prompt ${promptName} saved to MongoDB.`);
         res.send('Prompt saved successfully.');
-    });
+    } catch (mongoErr) {
+        console.error('Error saving prompt to MongoDB:', mongoErr);
+        res.status(500).send('Error saving prompt to MongoDB.');
+    }
 });
 
 // Endpoint to save the system prompt (legacy support)
