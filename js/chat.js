@@ -9,7 +9,7 @@ var isSpeaking = false;
 var sessionActive = false;
 var config = {};
 var previousAnimationFrameTimestamp = 0;
-var currentPrompt = 'superintelligence_prompt'; // Default prompt
+var currentPrompt = 'four_gifts_prompt'; // Default prompt
 // Use sessionStorage to persist introduction state across reloads
 var hasIntroduced = false;
 var microphoneEnabled = false; // Track microphone state
@@ -198,9 +198,9 @@ window.onload = async function() {
             }
         });
 
-        // Add space bar event handler to toggle microphone
+        // Add down arrow event handler to toggle microphone
         window.addEventListener('keydown', (event) => {
-            if (event.code === 'Space' && !event.repeat) {
+            if ((event.code === 'ArrowDown' || event.key === 'ArrowDown' || event.keyCode === 40) && !event.repeat) {
                 if (microphoneEnabled) {
                     stopMicrophone();
                 } else {
@@ -261,6 +261,8 @@ window.stopSession = function() {
     const stopSpeakingBtn = document.getElementById('stopSpeaking');
     if (stopSpeakingBtn) stopSpeakingBtn.disabled = true;
     sessionActive = false;
+    // Reset microphone state so only one down arrow is needed on next session
+    microphoneEnabled = false;
     // Reset greeting flag so avatar greets on next session start
     hasIntroduced = false;
     try { sessionStorage.removeItem('hasIntroduced'); } catch (e) {}
@@ -405,11 +407,12 @@ window.sendTypedMessage = function() {
 
 async function loadPrompt(promptName) {
     try {
-        const response = await fetch(`/api/prompt/${promptName}`);
+        const response = await fetch(`/api/prompt/${promptName}`, { cache: 'no-store' });
         if (!response.ok) {
             throw new Error(`Failed to load prompt: ${response.statusText}`);
         }
         const promptData = await response.json();
+        console.log('Prompt data:', promptData);
         config.systemPrompt = promptData.prompt;
         console.log(`Prompt "${promptName}" loaded.`);
         
@@ -601,7 +604,7 @@ async function connectAvatar(loadingModal) {
             document.getElementById('stopSession').disabled = false;
             sessionActive = true;
             
-            // Do not auto-start microphone; user controls with spacebar
+            // Do not auto-start microphone; user controls with down arrow
             document.getElementById('microphone').textContent = '🎤 Start Microphone';
 
             // Hide loading modal as soon as session is ready (custom avatar)
@@ -754,7 +757,7 @@ function setupWebRTC(iceServerUrl, iceServerUsername, iceServerCredential) {
                 setTimeout(() => { 
                     console.log('Session marked as active.');
                     sessionActive = true;
-                    // Do not auto-start microphone; user controls with spacebar
+                    // Do not auto-start microphone; user controls with down arrow
                     document.getElementById('microphone').textContent = '🎤 Start Microphone';
                     // Auto-start the conversation with the introduction
                     autoStartConversation();
