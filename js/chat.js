@@ -343,12 +343,7 @@ window.savePrompt = async function() {
     }
     statusMsg.textContent = 'Prompt saved and reloaded successfully.';
 
-    // Wait 1 second, then close the modal
-    setTimeout(() => {
-        closePromptModal();
-        if (statusMsg) statusMsg.textContent = '';
-    }, 1000);
-
+    // Try to save and reload the prompt, show errors in the modal if any
     try {
         const response = await fetch(`/api/prompt/${currentPrompt}`, {
             method: 'POST',
@@ -360,15 +355,27 @@ window.savePrompt = async function() {
 
         if (response.ok) {
             console.log("Prompt saved successfully.");
-            await loadPrompt(currentPrompt); // Reload to apply the new prompt
+            try {
+                await loadPrompt(currentPrompt); // Reload to apply the new prompt
+                // Success: close modal after 1s
+                setTimeout(() => {
+                    closePromptModal();
+                    if (statusMsg) statusMsg.textContent = '';
+                }, 1000);
+            } catch (loadError) {
+                statusMsg.textContent = 'Prompt saved, but failed to reload: ' + (loadError.message || loadError);
+                statusMsg.style.color = '#dc3545';
+            }
         } else {
             const errorText = await response.text();
             console.error('Failed to save prompt:', errorText);
-            alert(`Failed to save prompt: ${errorText}`);
+            statusMsg.textContent = 'Failed to save prompt: ' + errorText;
+            statusMsg.style.color = '#dc3545';
         }
     } catch (error) {
         console.error('Error saving prompt:', error);
-        alert('An error occurred while saving the prompt.');
+        statusMsg.textContent = 'An error occurred while saving the prompt.';
+        statusMsg.style.color = '#dc3545';
     }
 };
 
