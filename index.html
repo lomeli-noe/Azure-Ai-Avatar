@@ -36,8 +36,35 @@
 </head>
 <body>
     <div class="container">
-        <h1>Select a Conference</h1>
-        <a href="/chat.html?conference=agi" class="conference-button">Cognitive Science Conference</a>
+        <h1>Cognitive Science Conference Login</h1>
+        <form id="login-form">
+            <input type="email" id="email" placeholder="Enter your email" required style="padding:10px; font-size:16px; border-radius:4px; border:1px solid #ccc; width:250px;">
+            <button type="submit" style="padding:10px 20px; font-size:16px; border-radius:4px; background:#007bff; color:white; border:none; margin-left:10px;">Login</button>
+        </form>
+        <div id="conference-section" style="display:none; margin-top:20px;">
+            <a href="/chat.html?conference=agi" class="conference-button">Cognitive Science Conference</a>
+        </div>
+        <div id="login-message" style="color:red; margin-top:10px;"></div>
     </div>
+<script>
+// Simple frontend login logic (to be replaced with real backend auth)
+document.getElementById('login-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const email = document.getElementById('email').value;
+    const res = await fetch('/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+    });
+    const data = await res.json();
+    if (data.success) {
+        document.getElementById('login-form').style.display = 'none';
+        document.getElementById('conference-section').style.display = 'block';
+        document.getElementById('login-message').textContent = '';
+    } else {
+        document.getElementById('login-message').textContent = data.message || 'Login failed.';
+    }
+});
+</script>
 </body>
 </html>

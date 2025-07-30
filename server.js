@@ -4,6 +4,7 @@ console.log('=== server.js loaded ===');
 const dotenv = require('dotenv');
 dotenv.config();
 const express = require('express');
+const cookieParser = require('cookie-parser');
 const path = require('path');
 const fs = require('fs');
 const fetch = require('node-fetch');
@@ -27,6 +28,8 @@ async function connectMongo() {
 
 
 const app = express();
+// Read allowed emails from .env (comma-separated)
+const allowedEmails = (process.env.ALLOWED_EMAILS || '').split(',').map(e => e.trim()).filter(Boolean);
 const port = process.env.PORT || 3000;
 
 const promptFilePath = path.join(__dirname, 'prompt.txt');
@@ -51,7 +54,21 @@ fs.watchFile(promptFilePath, (curr, prev) => {
 });
 
 app.use(express.json());
+app.use(cookieParser());
 app.use(express.static(path.join(__dirname, '')));
+// Login endpoint
+app.post('/login', (req, res) => {
+    const { email } = req.body;
+    if (!email) {
+        return res.status(400).json({ success: false, message: 'Email is required.' });
+    }
+    if (!allowedEmails.includes(email)) {
+        return res.status(401).json({ success: false, message: 'Email not authorized.' });
+    }
+    // Set a simple session cookie (for demo; use secure session in production)
+    res.cookie('user_email', email, { httpOnly: true, sameSite: 'lax' });
+    return res.json({ success: true });
+});
 
 // Log all requests
 app.use((req, res, next) => {
@@ -62,6 +79,17 @@ app.use((req, res, next) => {
 // Serve the new entry page at root
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// Middleware to protect chat.html
+app.get('/chat.html', (req, res, next) => {
+    const email = req.cookies.user_email;
+    if (!email || !allowedEmails.includes(email)) {
+        // Not logged in, redirect to home
+        return res.redirect('/');
+    }
+    // Authenticated, serve chat.html
+    res.sendFile(path.join(__dirname, 'chat.html'));
 });
 
 // Endpoint to get the configuration
