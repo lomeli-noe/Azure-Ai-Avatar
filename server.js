@@ -1,3 +1,29 @@
+// Endpoint to get a specific prompt by name
+app.get('/api/prompt/:promptName', async (req, res) => {
+    const promptName = req.params.promptName;
+    const promptFilePath = path.join(__dirname, 'prompts', `${promptName}.txt`);
+
+    // Try to read from file first
+    fs.readFile(promptFilePath, 'utf-8', async (err, data) => {
+        if (!err && data) {
+            return res.json({ prompt: data });
+        }
+        // If not found in file, try MongoDB
+        try {
+            const db = await connectMongo();
+            const collection = db.collection('avatar_prompt');
+            const doc = await collection.findOne({ promptName });
+            if (doc && doc.prompt) {
+                return res.json({ prompt: doc.prompt });
+            } else {
+                return res.status(404).json({ error: 'Prompt not found.' });
+            }
+        } catch (mongoErr) {
+            console.error('Error loading prompt from MongoDB:', mongoErr);
+            return res.status(500).json({ error: 'Error loading prompt.' });
+        }
+    });
+});
 
 
 console.log('=== server.js loaded ===');
