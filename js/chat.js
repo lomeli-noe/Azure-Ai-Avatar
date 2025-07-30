@@ -243,22 +243,6 @@ window.switchKnowledgeBase = function() {
 
     alert(`Knowledge base switched to "${selector.options[selector.selectedIndex].text}". The chat has been reset.`);
 };
-
-// Called when the prompt selection changes
-window.switchPrompt = async function() {
-    const selector = document.getElementById('promptSelector');
-    currentPrompt = selector.value;
-    console.log(`Switching prompt to: ${currentPrompt}`);
-
-    await loadPrompt(currentPrompt);
-
-    // Clear the chat history to start a new conversation context
-    clearChatHistory();
-
-    alert(`Prompt switched to "${selector.options[selector.selectedIndex].text}". The chat has been reset.`);
-};
-
-// ...existing code...
 };
 
 // Called when "Close Avatar Session" is clicked
@@ -319,8 +303,6 @@ window.clearChatHistory = function() {
 window.reloadPrompt = async function() {
     console.log("Reloading prompt...");
     await loadPrompt(currentPrompt);
-    // Clear chat history and apply the new system prompt
-    clearChatHistory();
     alert("Prompt reloaded successfully. The chat history has been cleared.");
 };
 
@@ -343,6 +325,30 @@ window.savePrompt = async function() {
     const textarea = document.getElementById('promptTextarea');
     const newPrompt = textarea.value;
 
+
+    // Show status message in the modal before closing
+    const modal = document.getElementById('promptModal');
+    let statusMsg = document.getElementById('promptStatusMsg');
+    if (!statusMsg) {
+        statusMsg = document.createElement('div');
+        statusMsg.id = 'promptStatusMsg';
+        statusMsg.style.margin = '12px 0 0 0';
+        statusMsg.style.fontSize = '15px';
+        statusMsg.style.color = '#28a745';
+        statusMsg.style.textAlign = 'center';
+        const modalContent = modal && modal.querySelector('.modal-content');
+        if (modalContent) {
+            modalContent.appendChild(statusMsg);
+        }
+    }
+    statusMsg.textContent = 'Prompt saved and reloaded successfully.';
+
+    // Wait 1 second, then close the modal
+    setTimeout(() => {
+        closePromptModal();
+        if (statusMsg) statusMsg.textContent = '';
+    }, 1000);
+
     try {
         const response = await fetch(`/api/prompt/${currentPrompt}`, {
             method: 'POST',
@@ -354,10 +360,7 @@ window.savePrompt = async function() {
 
         if (response.ok) {
             console.log("Prompt saved successfully.");
-            closePromptModal();
             await loadPrompt(currentPrompt); // Reload to apply the new prompt
-            clearChatHistory();
-            alert("Prompt saved and reloaded successfully.");
         } else {
             const errorText = await response.text();
             console.error('Failed to save prompt:', errorText);

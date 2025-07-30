@@ -97,19 +97,6 @@ app.get('/api/config', (req, res) => {
     });
 });
 
-// Endpoint to get a specific prompt
-app.get('/api/prompt/:promptName', (req, res) => {
-    const promptName = req.params.promptName;
-    const promptFilePath = path.join(__dirname, 'prompts', `${promptName}.txt`);
-    fs.readFile(promptFilePath, 'utf-8', (err, data) => {
-        if (err) {
-            console.error(`Error reading ${promptFilePath}:`, err);
-            return res.status(500).send('Error loading prompt.');
-        }
-        res.json({ prompt: data });
-    });
-});
-
 // Endpoint to save a specific prompt
 app.post('/api/prompt/:promptName', async (req, res) => {
     const promptName = req.params.promptName;

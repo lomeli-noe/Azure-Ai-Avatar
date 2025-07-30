@@ -405,6 +405,7 @@
     if (!window.startSession) {
       window.startSession = function() {
         window.setMicStatus(false);
+        window.micEnabled = false; // Ensure micEnabled is false at session start
         // ...existing code for starting session...
       }
     } else {
@@ -451,6 +452,7 @@
       }
       // Reset mic status
       window.setMicStatus(false);
+      window.micEnabled = false; // Ensure micEnabled is false on reset
       // Reset buttons
       var openSessionBtn = document.getElementById('openSessionButton');
       if (openSessionBtn) openSessionBtn.disabled = false;
@@ -565,7 +567,6 @@
       
       <!-- Prompt Control Buttons -->
       <div style="margin-bottom: 15px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
-        <button id="reloadPrompt" onclick="window.reloadPrompt()" style="padding: 10px 18px; background-color: #9C27B0; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; box-shadow: 0 2px 8px rgba(156, 39, 176, 0.3); transition: all 0.2s ease;">🔄 Reload Current Prompt</button>
         <button onclick="window.closePromptModal()" style="padding: 10px 18px; background-color: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; box-shadow: 0 2px 8px rgba(108, 117, 125, 0.3); transition: all 0.2s ease;">❌ Cancel</button>
       </div>
       
